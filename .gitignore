@@ -10,6 +10,7 @@
 # Precompiled Headers
 *.gch
 *.pch
+*.pdb
 
 # Compiled Dynamic libraries
 *.so
@@ -30,3 +31,21 @@
 *.exe
 *.out
 *.app
+
+# Log Files and debug output
+*.log
+*.txt
+
+# visual studio code files
+*.code-workspace
+*.vscode
+
+# visual studio files
+*.suo
+*.vs
+*.ipch
+*.vsidx
+*.tlog
+
+# test samples
+*.png
