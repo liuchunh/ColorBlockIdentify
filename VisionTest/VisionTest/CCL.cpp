@@ -121,10 +121,17 @@ static uint8_t IsRunConnected(const Run *current, const Run *previous){
  * @return false 
  * 
  * @note 该函数不会修改 runs 中的 label 标签, 仅仅是提取出连续像素段的起始和结束位置
+ * @note 请注意 保证所有填进的指针不为空, 且 width > MaskPerRow 的 width
  */
-static bool ExtractRunsFromRow(const uint8_t* MaskPerRow, const uint16_t width, Run* runs, const uint16_t RunsCapacity, uint16_t* RunsCount){
+static bool ExtractRunsFromRow(const int* MaskPerRow, const uint16_t width, Run* runs, const uint16_t RunsCapacity, uint16_t* RunsCount){
     uint16_t count = 0;
     uint16_t CurrX = 0;
+    
+    if (MaskPerRow == nullptr || runs == nullptr || RunsCapacity < 0 || RunsCount == nullptr){
+        return false;
+    }
+    
+    *RunsCount = 0;
 
     while (CurrX < width){
         while (CurrX < width && MaskPerRow[CurrX] == 0){

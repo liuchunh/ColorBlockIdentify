@@ -49,3 +49,14 @@
 
 # test samples
 *.png
+
+# binary files in visual studio debug folder
+*.idb
+*.recipe
+*.ilk
+
+# temp scripts from codex
+*.py
+
+# Guidance
+*.md

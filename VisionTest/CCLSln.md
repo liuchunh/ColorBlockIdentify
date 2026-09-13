@@ -1736,3 +1736,358 @@ largest area=37
 先统一查根，再标记 active 和回收标签；
 最后一行结束后，主动结算仍活跃的块。
 ```
+
+### 19. 从输入图像到最大连通块：完整 CCL 流程代码骨架
+
+这一节把前面分散介绍的步骤串成一条完整流程。下面的代码首先展示“谁调用谁”，再分别说明每个函数的职责。代码使用固定数组和 C 风格结构体，不依赖 `vector`、类、异常等 C++ 特性。实现时可以先照着这个骨架搭好接口，再逐个填写函数体。
+
+#### 19.1 整条数据流
+
+```text
+摄像头图像
+    -> 读取像素 HSV
+    -> 判断是否属于目标颜色
+    -> 二值结果：目标为 1，背景为 0
+    -> 每行提取连续目标区间 Run
+    -> 当前行 Run 与上一行 Run 做连通判断
+    -> 分配标签，并用并查集合并相连标签
+    -> 图像结束后汇总每个连通块
+    -> 选择面积最大的连通块
+    -> 输出面积、外接矩形和质心
+```
+
+每层只负责一件事：颜色判断只处理 HSV，游程提取只处理一行 0/1 数据，CCL 只处理游程之间的连接，最后的统计模块只处理连通块结果。这样调试时可以明确错误属于哪一层。
+
+#### 19.2 主要数据结构
+
+```c
+#include <stdint.h>
+
+#define IMAGE_WIDTH       160u
+#define IMAGE_HEIGHT      120u
+#define MAX_RUNS_PER_ROW  ((IMAGE_WIDTH + 1u) / 2u)
+#define MAX_LABELS        2048u
+
+typedef struct
+{
+    uint16_t h;
+    uint8_t  s;
+    uint8_t  v;
+} HsvPixel;
+
+typedef struct
+{
+    uint16_t start_x;     /* 包含 start_x */
+    uint16_t end_x;       /* 包含 end_x */
+    uint16_t label;       /* 当前暂时使用的标签 */
+} Run;
+
+typedef struct
+{
+    uint32_t area;
+    uint32_t sum_x;
+    uint32_t sum_y;
+    uint16_t min_x;
+    uint16_t max_x;
+    uint16_t min_y;
+    uint16_t max_y;
+    uint8_t  active;
+} ComponentStat;
+
+typedef struct
+{
+    uint16_t parent[MAX_LABELS];
+    uint8_t  rank[MAX_LABELS];
+    ComponentStat stat[MAX_LABELS];
+    uint16_t next_label;
+} CclContext;
+
+typedef struct
+{
+    uint8_t  found;
+    uint32_t area;
+    uint16_t min_x;
+    uint16_t max_x;
+    uint16_t min_y;
+    uint16_t max_y;
+    uint16_t center_x;
+    uint16_t center_y;
+} LargestComponent;
+```
+
+`Run.label` 是游程当前使用的临时标签。因为后面可能发现两个标签相连，所以它不一定是最终根标签。`ComponentStat` 保存某个标签当前拥有的面积、坐标和外接矩形；整张图结束时要通过 `Find` 找根标签，再把统计结果归到根标签。
+
+#### 19.3 函数接口和职责
+
+```c
+uint8_t PixelMatchesTarget(
+    const HsvPixel* pixel,
+    uint16_t h_min, uint16_t h_max,
+    uint8_t s_min, uint8_t v_min);
+
+void BuildMaskRow(
+    const HsvPixel* hsv_row, uint8_t* mask_row, uint16_t width,
+    uint16_t h_min, uint16_t h_max,
+    uint8_t s_min, uint8_t v_min);
+
+uint8_t ExtractRunsFromRow(
+    const uint8_t* mask_row, uint16_t width,
+    Run* runs, uint16_t runs_capacity, uint16_t* runs_count);
+
+void CclInit(CclContext* context);
+uint16_t CclFind(CclContext* context, uint16_t label);
+uint8_t CclUnion(CclContext* context,
+                 uint16_t label_a, uint16_t label_b);
+
+void CclAddRunStat(CclContext* context,
+                   uint16_t label, const Run* run, uint16_t y);
+
+uint8_t CclProcessRow(
+    CclContext* context,
+    const Run* previous_runs, uint16_t previous_count,
+    Run* current_runs, uint16_t current_count,
+    uint16_t y, uint8_t use_eight_connectivity);
+
+uint8_t CclSelectLargest(CclContext* context,
+                         LargestComponent* result);
+```
+
+接口边界要保持单一职责。例如 `CclProcessRow` 可以调用 `Find`、`Union` 和 `CclAddRunStat`，但不应重新做 HSV 判断；颜色判断已经在上一层完成。
+
+#### 19.4 完整主流程：整帧二值图版本
+
+```c
+uint8_t ProcessOneFrame(
+    const HsvPixel hsv_image[IMAGE_HEIGHT][IMAGE_WIDTH],
+    LargestComponent* result)
+{
+    static uint8_t mask[IMAGE_HEIGHT][IMAGE_WIDTH];
+    static Run run_buffer_a[MAX_RUNS_PER_ROW];
+    static Run run_buffer_b[MAX_RUNS_PER_ROW];
+    Run* previous_runs = run_buffer_a;
+    Run* current_runs = run_buffer_b;
+    Run* temporary;
+    CclContext context;
+    uint16_t previous_count = 0u;
+    uint16_t current_count;
+    uint16_t y;
+
+    if (result == 0)
+    {
+        return 0u;
+    }
+
+    /* 1. 每个 HSV 像素转换成 0 或 1。 */
+    for (y = 0u; y < IMAGE_HEIGHT; ++y)
+    {
+        BuildMaskRow(hsv_image[y], mask[y], IMAGE_WIDTH,
+                     TARGET_H_MIN, TARGET_H_MAX,
+                     TARGET_S_MIN, TARGET_V_MIN);
+    }
+
+    /* 2. 初始化并查集和统计数组。 */
+    CclInit(&context);
+
+    /* 3. 从上到下逐行处理。 */
+    for (y = 0u; y < IMAGE_HEIGHT; ++y)
+    {
+        if (!ExtractRunsFromRow(mask[y], IMAGE_WIDTH,
+                                current_runs, MAX_RUNS_PER_ROW,
+                                &current_count))
+        {
+            return 0u;
+        }
+
+        if (!CclProcessRow(&context,
+                           previous_runs, previous_count,
+                           current_runs, current_count,
+                           y, 1u))
+        {
+            return 0u;
+        }
+
+        /* 只交换指针，不复制整行游程。 */
+        temporary = previous_runs;
+        previous_runs = current_runs;
+        current_runs = temporary;
+        previous_count = current_count;
+    }
+
+    /* 4. 所有行结束后统一汇总，并选择最大连通块。 */
+    return CclSelectLargest(&context, result);
+}
+```
+
+这里必须把两个游程缓冲区声明成指针再交换。C 语言数组名不能直接互换；交换指针只改变“哪个缓冲区代表上一行”，不会复制数据。
+
+#### 19.5 嵌入式推荐：逐行生成二值图
+
+不必保存 `mask[IMAGE_HEIGHT][IMAGE_WIDTH]`。摄像头或 HSV 转换提供一行数据后，立即执行：
+
+```text
+第 y 行 HSV -> BuildMaskRow -> ExtractRunsFromRow
+            -> CclProcessRow -> 交换 Run 缓冲区
+            -> 读取第 y+1 行
+```
+
+```c
+uint8_t ProcessOneFrameByRow(
+    const HsvPixel* hsv_image,
+    LargestComponent* result)
+{
+    static uint8_t mask_row[IMAGE_WIDTH];
+    static Run run_buffer_a[MAX_RUNS_PER_ROW];
+    static Run run_buffer_b[MAX_RUNS_PER_ROW];
+    Run* previous_runs = run_buffer_a;
+    Run* current_runs = run_buffer_b;
+    Run* temporary;
+    CclContext context;
+    uint16_t previous_count = 0u;
+    uint16_t current_count;
+    uint16_t y;
+
+    CclInit(&context);
+
+    for (y = 0u; y < IMAGE_HEIGHT; ++y)
+    {
+        const HsvPixel* hsv_row = hsv_image + y * IMAGE_WIDTH;
+
+        BuildMaskRow(hsv_row, mask_row, IMAGE_WIDTH,
+                     TARGET_H_MIN, TARGET_H_MAX,
+                     TARGET_S_MIN, TARGET_V_MIN);
+
+        if (!ExtractRunsFromRow(mask_row, IMAGE_WIDTH,
+                                current_runs, MAX_RUNS_PER_ROW,
+                                &current_count))
+        {
+            return 0u;
+        }
+
+        if (!CclProcessRow(&context,
+                           previous_runs, previous_count,
+                           current_runs, current_count,
+                           y, 1u))
+        {
+            return 0u;
+        }
+
+        temporary = previous_runs;
+        previous_runs = current_runs;
+        current_runs = temporary;
+        previous_count = current_count;
+    }
+
+    return CclSelectLargest(&context, result);
+}
+```
+
+这个版本只需要一行掩码、两行 Run 缓冲区、并查集数组和统计数组，RAM 明显少于保存整张二值图的版本。它仍然是完整 CCL，因为相邻关系只需要比较当前行和上一行。
+
+#### 19.6 `CclProcessRow` 内部的固定步骤
+
+```text
+对当前行每个 current_run：
+    1. found_overlap = 0
+    2. 遍历上一行的 previous_run
+    3. 判断两个 Run 是否连通
+    4. 第一个连通者提供当前标签
+    5. 后续连通者与当前标签执行 Union
+    6. 一个连通者都没有时创建新标签
+    7. 将当前 Run 的统计量加入标签
+```
+
+四邻域要求横向区间真正重叠；八邻域允许横向相差一个像素：
+
+```c
+/* 四邻域 */
+current.start_x <= previous.end_x &&
+current.end_x >= previous.start_x
+
+/* 八邻域：允许斜对角连接 */
+current.start_x <= previous.end_x + 1u &&
+current.end_x + 1u >= previous.start_x
+```
+
+实际实现时要考虑无符号整数加一的边界。若担心 `uint16_t` 溢出，可以先转成 `uint32_t` 再比较。
+
+为什么第一个连通者继承标签、后续连通者做 `Union`？例如上一行有标签 3 和 7 的两个游程，而当前游程同时碰到它们。当前游程把两个原本分开的临时标签连接成一个块，因此必须执行：
+
+```text
+当前标签 = 3
+Union(3, 7)
+```
+
+不能只选择标签 3 而丢掉标签 7，这正是并查集的作用：先临时标记，发现后来相连时再合并。
+
+#### 19.7 为什么可以按 Run 统计
+
+游程 `[start_x, end_x]` 在第 `y` 行的长度为：
+
+```text
+run_length = end_x - start_x + 1
+```
+
+它对统计量的贡献为：
+
+```text
+area  += run_length
+sum_x += (start_x + end_x) * run_length / 2
+sum_y += y * run_length
+min_x 取 start_x
+max_x 取 end_x
+min_y 取 y
+max_y 取 y
+```
+
+这样不需要对一个游程中的每个像素再次循环。中间乘法也要使用 32 位或更宽的类型。标签合并后，必须把临时标签的统计量归并到根标签；初学时可以在整图结束后统一 `Find` 再汇总，逻辑更容易检查。
+
+#### 19.8 `CclSelectLargest` 的收尾顺序
+
+所有行处理结束后，不能直接比较每个临时标签的面积，因为一个连通块可能拥有多个临时标签。正确顺序是：
+
+```text
+result->found = 0
+遍历每个已分配标签 label：
+    root = CclFind(label)
+    如果 label 不是 root：把 label 的统计量加到 root
+
+再次遍历所有根标签：
+    忽略 area == 0
+    area 最大者保存为最大块
+
+如果找到最大块：
+    center_x = sum_x / area
+    center_y = sum_y / area
+    result->found = 1
+```
+
+质心必须在所有统计量合并完成后再计算，否则后续合并会使已经计算的质心失效。没有目标时必须明确返回 `found == 0`，而不是读取未初始化的坐标。
+
+#### 19.9 推荐实现和调试顺序
+
+```text
+1. PixelMatchesTarget
+2. BuildMaskRow
+3. ExtractRunsFromRow
+4. CclInit / CclFind / CclUnion
+5. CclAddRunStat
+6. 两个 Run 的重叠判断
+7. CclProcessRow
+8. CclSelectLargest
+9. ProcessOneFrameByRow
+10. 最后接入摄像头和 scc8660_finish_flag
+```
+
+每完成一个函数就用固定输入检查输出：先确认掩码只有 0/1，再确认每个 Run 都满足 `start_x <= end_x`，然后验证 `Union` 后两个标签能找到相同根，最后才接入摄像头。建议用很小的人工二值图（例如 8×6）手工写出每行 Run 和预期标签，能快速发现缓冲区交换、标签合并和最后一行结算方面的问题。
+
+### 19.10 可以拆成的模块
+
+```text
+color_threshold.c  : PixelMatchesTarget, BuildMaskRow
+run_extract.c      : ExtractRunsFromRow
+union_find.c       : CclInit, CclFind, CclUnion
+ccl_process.c      : CclAddRunStat, CclProcessRow, CclSelectLargest
+frame_process.c    : ProcessOneFrameByRow、摄像头帧完成标志处理
+```
+
+拆分的意义是让每层都能单独测试，而不是增加复杂度：不接摄像头也能测试颜色判断；不接 HSV 也能用人工 0/1 数据测试游程；用几行 Run 就能测试并查集；最后再把模块接到摄像头帧循环。
