@@ -8,7 +8,7 @@ typedef struct _run{
     uint16_t Label; // 所属连通块的标签, 0 表示未标记
 } Run;
 
-typedef struct _conponent{
+typedef struct _component{
     uint16_t parent;
 
     uint32_t area; // 该连通块目前累计的像素数
@@ -59,10 +59,105 @@ static bool ExtractRunsFromRow(const int* MaskPerRow, const uint16_t width, Run*
     return true;
 }
 
-size_t componentCount = 0;
+#define MaxComponents 64
 
 #define MaxRunsPerRow 4
 #define HEIGHT 4
+
+/**
+ * @brief 将 Run 的信息更新到 Component 中, 用于计算连通块的面积、质心、边界框等信息
+ * 
+ * @param components 
+ * @param run 
+ * 
+ * @attention 函数在修改 components 时, 请确保 run->Label 已经被正确分配, 且 components[run->Label] 已经被初始化
+ */
+void UpdateComponent(Component* components, Run run, int RunHeight){
+    uint16_t Label = run.Label;
+    if (Label == 0 || Label >= MaxComponents){
+        return;
+    }
+
+    Component* comp = &components[Label];
+
+    if (comp->area == 0){
+        comp->SeedX = run.StartX;
+        comp->SeedY = RunHeight;
+    }
+
+    int length = run.EndX - run.StartX + 1;
+    comp->area += length;
+    
+    comp->SumX += (run.StartX + run.EndX) * length / 2; // 累加游程的中点坐标
+    comp->SumY += length * RunHeight; // 累加游程的行坐标
+    
+    comp->minX = std::min(comp->minX, run.StartX);
+    comp->minY = std::min((int)comp->minY, RunHeight);
+    comp->maxX = std::max(comp->maxX, run.EndX);
+    comp->maxY = std::max((int)comp->maxY, RunHeight);
+}
+
+uint16_t Find(Component* components, uint16_t Label){
+    if (Label >= MaxComponents){
+        return 0;
+    }
+
+    uint16_t root = Label;
+    while (components[root].parent != root){
+        root = components[root].parent;
+    }
+
+    while (components[Label].parent != root){
+        uint16_t temp = components[Label].parent;
+        components[Label].parent = root;
+        Label = temp;
+    }
+
+    return root;
+}
+
+uint16_t Union(Component* components, uint16_t Label1, uint16_t Label2){
+    if (Label1 >= MaxComponents || Label2 >= MaxComponents){
+        return 0;
+    }
+
+    uint16_t root1 = Find(components, Label1);
+    uint16_t root2 = Find(components, Label2);
+
+    if (root1 != root2){
+        components[root1].parent = root2;
+
+        components[root2].area += components[root1].area;
+        components[root2].SumX += components[root1].SumX;
+        components[root2].SumY += components[root1].SumY;
+        components[root2].minX = std::min(components[root2].minX, components[root1].minX);
+        components[root2].minY = std::min(components[root2].minY, components[root1].minY);
+        components[root2].maxX = std::max(components[root2].maxX, components[root1].maxX);
+        components[root2].maxY = std::max(components[root2].maxY, components[root1].maxY);
+    }
+
+    return root2;
+}
+
+uint16_t AllocateLabel(Component* components, uint16_t Label){
+    if (Label >= MaxComponents){
+        return 0;
+    }
+
+    components[Label].parent = Label;
+    components[Label].area = 0;
+    components[Label].SumX = 0;
+    components[Label].SumY = 0;
+    components[Label].minX = UINT16_MAX;
+    components[Label].minY = UINT16_MAX;
+    components[Label].maxX = 0;
+    components[Label].maxY = 0;
+    components[Label].SeedX = 0;
+    components[Label].SeedY = 0;
+    components[Label].Used = true;
+    components[Label].Active = true;
+    return Label;
+}
 
 /**
  * @brief 将游程合并为连通块
@@ -86,46 +181,69 @@ int MergeRunsToComponent(Run runs[][MaxRunsPerRow], Component* components, int H
     int count = RunsCount[0];
     for (int i = 0; i < count; i ++){
         Label ++;
-        runs[0][i].Label = Label;
+        runs[0][i].Label = AllocateLabel(components, Label);
     }
 
     for (int h = 1; h < Height; h ++ ){
         int count = RunsCount[h];
         for (int index = 0; index < count; index ++ ){
             Run* curr = &runs[h][index];
-            bool AllocateLabel = false;
+            bool AllocatedLabel = false;
 
             // 显然左右不可能再合并了, 不然就进到同一游程了
             // 因此我们考虑上下合并, 即当前游程的上部是否存在游程, 如果存在则使用同一标签, 如果不就新开标签
             for (int LastRowRunIndex = 0; LastRowRunIndex < RunsCount[h - 1]; LastRowRunIndex ++ ){
-                Run* Current = &runs[h - 1][LastRowRunIndex];
-                if (Current->EndX < curr->StartX) continue; // 上一行游程结束位置比当前 (curr) 的开始位置还早, 即无重叠
-                if (curr->EndX < Current->StartX) continue; // 上一行游程开始位置比当前的结束位置还早
-                if (curr->Label == 0){
-                    curr->Label = Current->Label;
+                Run* prev = &runs[h - 1][LastRowRunIndex];
+                if (prev->EndX < curr->StartX) continue; // 上一行游程结束位置比当前 (curr) 的开始位置还早, 即无重叠
+                if (curr->EndX < prev->StartX) continue; // 上一行游程开始位置比当前的结束位置还早
+                if (curr->Label == 0){ // 当前游程还没有分配标签, 则使用上一行的游程标签
+                    curr->Label = prev->Label;
                 }
                 else{
-                    // 之前已经分配有标签了, 此时 belike:
-                    // ----   ----
-                    //   -------
-                    if (curr->Label > Current->Label){
-                        curr->Label = Current->Label;
-                    }
-                    else{
-                        Current->Label = curr->Label;
-                    }
+                    // 之前已经分配有标签了
+                    // 此时我们考虑使用并查集合并标签
+                    Union(components, curr->Label, prev->Label);
                 }
-                AllocateLabel = true;
+                AllocatedLabel = true;
             }
 
-            if (!AllocateLabel){
+            // 如果当前游程没有与上一行的游程重叠, 则分配一个新的标签
+            if (!AllocatedLabel){
                 Label ++;
-                curr->Label = Label;
+                curr->Label = AllocateLabel(components, Label);
+            }
+        }
+    }
+
+    // 最后我们需要将所有游程的标签更新为最终的根标签, 并更新连通块的信息
+    for (int h = 0; h < Height; h ++ ){
+        for (int w = 0; w < RunsCount[h]; w ++ ){
+            Run* curr = &runs[h][w];
+            if (curr->Label != 0){
+                curr->Label = Find(components, curr->Label);
+                UpdateComponent(components, *curr, h);
             }
         }
     }
 
     return Label;
+}
+
+void PrintComponents(const Component* components, int count){
+    for (int i = 1; i <= count; i ++ ){
+        const Component* comp = &components[i];
+        if (comp->Used){
+            if (comp->area == 0){
+                std::cerr << std::format("Component {}: Area is 0, this should not happen!", i) << std::endl;
+            }
+            else if (comp->area > 0){
+                std::cout << std::format("Component {}: SumX: {}, SumY: {}, Area: {}, Centroid: ({}, {}), Bounding Box: [({}, {}) -> ({}, {})], Seed: ({}, {}), Parent: {}", 
+                i, comp->SumX, comp->SumY, comp->area, comp->SumX / comp->area, comp->SumY / comp->area, 
+                comp->minX, comp->minY, comp->maxX, comp->maxY,
+                comp->SeedX, comp->SeedY, comp->parent) << std::endl;
+            }
+        }
+    }
 }
 
 #define MaskHeight 4
@@ -157,7 +275,7 @@ int main(){
         }
     }
 
-    MergeRunsToComponent(run, component, MaskHeight, RunsCount, MaxRunsPerRow * MaskHeight);
+    int Label = MergeRunsToComponent(run, component, MaskHeight, RunsCount, MaxRunsPerRow * MaskHeight);
 
     for (int i = 0; i < MaskHeight; i ++ ){
         int count = RunsCount[i];
@@ -165,6 +283,8 @@ int main(){
             std::cout << std::format("[({}, {}) -> ({}, {}), Label: {}]", run[i][j].StartX, i, run[i][j].EndX, i, run[i][j].Label) << std::endl;
         }
     }
+
+    PrintComponents(component, Label);
 
     return 0;
 }
