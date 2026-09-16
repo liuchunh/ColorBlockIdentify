@@ -1,16 +1,6 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 
-bool matEquals(const cv::Mat& a, const cv::Mat& b) {
-	if (a.size() != b.size() || a.type() != b.type()) {
-		return false;
-	}
-	cv::Mat diff;
-	cv::compare(a, b, diff, cv::CMP_NE);
-	return cv::countNonZero(diff.reshape(1)) == 0;
-}
-
-
 static cv::Vec3b ConvertPixelBGR2HSV(const cv::Vec3b& pixel){
 	float b = pixel[0] / 255.0f;
 	float g = pixel[1] / 255.0f;
@@ -43,6 +33,26 @@ static cv::Vec3b ConvertPixelBGR2HSV(const cv::Vec3b& pixel){
 	return cv::Vec3b(static_cast<uchar>(h / 2), static_cast<uchar>(s * 255), static_cast<uchar>(v * 255));
 }
 
+static void ImgInHsvRange(const cv::Mat& src, const cv::Scalar& lower, const cv::Scalar& upper, cv::Mat& mask, const cv::Scalar& PixelEps = cv::Scalar(2, 2, 2)) {
+    int width = src.cols;
+    int height = src.rows;
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            cv::Vec3b pixel = src.at<cv::Vec3b>(y, x);
+            if (pixel[0] >= lower[0] - PixelEps[0] && pixel[0] <= upper[0] + PixelEps[0] &&
+                pixel[1] >= lower[1] - PixelEps[1] && pixel[1] <= upper[1] + PixelEps[1] &&
+                pixel[2] >= lower[2] - PixelEps[2] && pixel[2] <= upper[2] + PixelEps[2]) {
+                mask.at<uchar>(y, x) = 255;
+            }
+            else {
+                mask.at<uchar>(y, x) = 0;
+            }
+        }
+    }
+
+}
+
 static cv::Mat ConvertImg2HSV(const cv::Mat& src) {
 	cv::Mat res = src.clone();
 	int width = src.cols;
@@ -57,8 +67,11 @@ static cv::Mat ConvertImg2HSV(const cv::Mat& src) {
 	return res;
 }
 
+cv::Scalar HSVLower(26, 43, 46);
+cv::Scalar HSVUpper(34, 255, 255);
+
 int main() {
-	cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Pictures\\test4.jpg");
+	cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Pictures\\test6.jpg");
 	if (src.empty()) {
 		std::cerr << "Error: Could not open or find the image!" << std::endl;
 		return 1;
@@ -66,16 +79,17 @@ int main() {
 
 	cv::Mat hsv = ConvertImg2HSV(src);
 	cv::Mat dst = src.clone();
-	cv::cvtColor(dst, dst, cv::COLOR_BGR2HSV);
+	cv::cvtColor(dst, dst, cv::COLOR_BGR2HSV);    
+    cv::Mat mask = cv::Mat::zeros(src.size(), CV_8UC1);
+    cv::Mat ownMask = cv::Mat::zeros(src.size(), CV_8UC1);
 
-	if (matEquals(dst, hsv)){
-		std::cout << "Match!" << std::endl;
-	}
+    cv::inRange(dst, HSVLower, HSVUpper, mask);
+    ImgInHsvRange(hsv, HSVLower, HSVUpper, ownMask, cv::Scalar(0, 0, 0));
 
 	cv::imshow("Original", src);
-	cv::imshow("Custom HSV", hsv);
-	cv::imshow("OpenCV HSV", dst);
+    cv::imshow("OpenCV Mask", mask);
+    cv::imshow("Own Mask", ownMask);
 
-	cv::waitKey(0);
+    cv::waitKey(0);
 	return 0;
 }

@@ -260,6 +260,13 @@ Run run[MaskHeight][MaxRunsPerRow];
 int RunsCount[MaskHeight];
 Component component[MaxRunsPerRow * MaskHeight];
 
+typedef struct coord{
+    uint16_t x, y;
+} Coordinate;
+
+// 最大连通块的两个角. 用于画出外接矩形
+Coordinate LeftTop, RightBottom;
+
 int main(){
     uint16_t RunsCountRow = 0;
     for (int i = 0; i < MaskHeight; i ++ ){
