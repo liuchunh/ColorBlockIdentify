@@ -12,10 +12,10 @@ typedef struct _component{
     uint16_t parent;
 
     uint32_t area; // 该连通块目前累计的像素数
-    uint64_t SumX, SumY; // 该连通块目前累计的像素坐标和, 用于计算质心
+    // uint64_t SumX, SumY; // 该连通块目前累计的像素坐标和, 用于计算质心
 
     uint16_t minX, minY, maxX, maxY; // 该连通块的边界框 -> 外接矩形
-    uint16_t SeedX, SeedY; // 该块内任何一个像素的坐标
+    // uint16_t SeedX, SeedY; // 该块内任何一个像素的坐标
 
     bool Used; // 标签槽位是否正在使用
     bool Active; // 处理完当前行后, 是否还有像素在该连通块中, 用于判断是否需要继续处理下一行
@@ -80,16 +80,16 @@ void UpdateComponent(Component* components, Run run, int RunHeight){
 
     Component* comp = &components[Label];
 
-    if (comp->area == 0){
-        comp->SeedX = run.StartX;
-        comp->SeedY = RunHeight;
-    }
+    // if (comp->area == 0){
+    //     comp->SeedX = run.StartX;
+    //     comp->SeedY = RunHeight;
+    // }
 
     int length = run.EndX - run.StartX + 1;
     comp->area += length;
     
-    comp->SumX += (run.StartX + run.EndX) * length / 2; // 累加游程的中点坐标
-    comp->SumY += length * RunHeight; // 累加游程的行坐标
+    // comp->SumX += (run.StartX + run.EndX) * length / 2; // 累加游程的中点坐标
+    // comp->SumY += length * RunHeight; // 累加游程的行坐标
     
     comp->minX = std::min(comp->minX, run.StartX);
     comp->minY = std::min((int)comp->minY, RunHeight);
@@ -128,8 +128,8 @@ uint16_t Union(Component* components, uint16_t Label1, uint16_t Label2){
         components[root1].parent = root2;
 
         components[root2].area += components[root1].area;
-        components[root2].SumX += components[root1].SumX;
-        components[root2].SumY += components[root1].SumY;
+        // components[root2].SumX += components[root1].SumX;
+        // components[root2].SumY += components[root1].SumY;
         components[root2].minX = std::min(components[root2].minX, components[root1].minX);
         components[root2].minY = std::min(components[root2].minY, components[root1].minY);
         components[root2].maxX = std::max(components[root2].maxX, components[root1].maxX);
@@ -146,14 +146,14 @@ uint16_t AllocateLabel(Component* components, uint16_t Label){
 
     components[Label].parent = Label;
     components[Label].area = 0;
-    components[Label].SumX = 0;
-    components[Label].SumY = 0;
+    // components[Label].SumX = 0;
+    // components[Label].SumY = 0;
     components[Label].minX = UINT16_MAX;
     components[Label].minY = UINT16_MAX;
     components[Label].maxX = 0;
     components[Label].maxY = 0;
-    components[Label].SeedX = 0;
-    components[Label].SeedY = 0;
+    // components[Label].SeedX = 0;
+    // components[Label].SeedY = 0;
     components[Label].Used = true;
     components[Label].Active = true;
     return Label;
@@ -237,10 +237,14 @@ void PrintComponents(const Component* components, int count){
                 std::cerr << std::format("Component {}: Area is 0, this should not happen!", i) << std::endl;
             }
             else if (comp->area > 0){
+                /*
                 std::cout << std::format("Component {}: SumX: {}, SumY: {}, Area: {}, Centroid: ({}, {}), Bounding Box: [({}, {}) -> ({}, {})], Seed: ({}, {}), Parent: {}", 
                 i, comp->SumX, comp->SumY, comp->area, comp->SumX / comp->area, comp->SumY / comp->area, 
                 comp->minX, comp->minY, comp->maxX, comp->maxY,
                 comp->SeedX, comp->SeedY, comp->parent) << std::endl;
+                */
+               std::cout << std::format("Component {}: Area: {}, Bounding Box: [({}, {}) -> ({}, {})], Parent: {}", 
+                i, comp->area, comp->minX, comp->minY, comp->maxX, comp->maxY, comp->parent) << std::endl;
             }
         }
     }
@@ -292,6 +296,20 @@ int main(){
     }
 
     PrintComponents(component, Label);
+
+    size_t maxArea = 0;
+    for (int i = 1; i <= Label; i ++ ){
+        if (component[i].area > maxArea) {
+            maxArea = component[i].area;
+        
+            LeftTop.x = component[i].minX;
+            LeftTop.y = component[i].minY;
+            RightBottom.x = component[i].maxX;
+            RightBottom.y = component[i].maxY;
+        }
+    }
+
+    std::cout << std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y) << std::endl;
 
     return 0;
 }
