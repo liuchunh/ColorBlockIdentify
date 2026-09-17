@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Convert2Mask.cpp">
+    <ClCompile Include="CCLMain.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

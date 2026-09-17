@@ -71,7 +71,7 @@ cv::Scalar HSVLower(26, 43, 46);
 cv::Scalar HSVUpper(34, 255, 255);
 
 int main() {
-	cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Pictures\\test6.jpg");
+	cv::Mat src = cv::imread("D:\\Executive\\Ordinary\\Identify\\001.png");
 	if (src.empty()) {
 		std::cerr << "Error: Could not open or find the image!" << std::endl;
 		return 1;

@@ -59,8 +59,47 @@ static bool ExtractRunsFromRow(const int* MaskPerRow, const uint16_t width, Run*
     return true;
 }
 
+static bool ExtractRunsFromCol(const int* MaskPerCol, const uint16_t height, Run* runs, const uint16_t RunsCapacity, uint16_t* RunsCount){
+    uint16_t count = 0;
+    uint16_t CurrY = 0;
+    
+    if (MaskPerCol == nullptr || runs == nullptr || RunsCount == nullptr){
+        return false;
+    }
+
+    *RunsCount = 0;
+
+    while (CurrY < height){
+        while (CurrY < height && MaskPerCol[CurrY] == 0){
+            CurrY ++;
+        }
+
+        if (CurrY >= height){
+            break;
+        }
+
+        if (count >= RunsCapacity){
+            return false;
+        }
+
+        runs[count].StartX = CurrY;
+
+        while (CurrY < height && MaskPerCol[CurrY] != 0){
+            CurrY ++;
+        }
+
+        runs[count].EndX = CurrY - 1;
+        runs[count].Label = 0; // 初始化为未标记, 在本函数中不修改 label 标签
+        count ++;
+    }
+
+    *RunsCount = count;
+    return true;
+}
+
 #define MaxComponents 64
 
+#define MaxRunsPerCol 3
 #define MaxRunsPerRow 4
 #define HEIGHT 4
 
@@ -273,16 +312,30 @@ Coordinate LeftTop, RightBottom;
 
 int main(){
     uint16_t RunsCountRow = 0;
-    for (int i = 0; i < MaskHeight; i ++ ){
-        if (ExtractRunsFromRow(mask[i], MaskWidth, run[i], MaxRunsPerRow, &RunsCountRow)){
-            std::cout << std::format("Detected {} runs in row {} ", RunsCountRow, i) << std::endl;
-            RunsCount[i] = RunsCountRow;
-            for (int j = 0; j < RunsCountRow; j ++ ){
+    // for (int i = 0; i < MaskHeight; i ++ ){
+    //     if (ExtractRunsFromRow(mask[i], MaskWidth, run[i], MaxRunsPerRow, &RunsCountRow)){
+    //         std::cout << std::format("Detected {} runs in row {} ", RunsCountRow, i) << std::endl;
+    //         RunsCount[i] = RunsCountRow;
+    //         for (int j = 0; j < RunsCountRow; j ++ ){
+    //             std::cout << std::format("[{} -> {}]", run[i][j].StartX, run[i][j].EndX) << std::endl;
+    //         }
+    //     }
+    //     else{
+    //         std::cout << "No Runs detected in " << i << " row." << std::endl;
+    //     }
+    // }
+
+    uint16_t RunsCountCol = 0;
+    for (int i = 0; i < MaskWidth; i ++ ){
+        if (ExtractRunsFromCol(mask[i], MaskHeight, run[i], MaxRunsPerCol, &RunsCountCol)){
+            std::cout << std::format("Detected {} runs in col {} ", RunsCountCol, i) << std::endl;
+            RunsCount[i] = RunsCountCol;
+            for (int j = 0; j < RunsCountCol; j ++ ){
                 std::cout << std::format("[{} -> {}]", run[i][j].StartX, run[i][j].EndX) << std::endl;
             }
         }
         else{
-            std::cout << "No Runs detected in " << i << " row." << std::endl;
+            std::cout << "No Runs detected in " << i << " col." << std::endl;
         }
     }
 
