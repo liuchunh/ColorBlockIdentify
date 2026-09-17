@@ -39,8 +39,8 @@ namespace ImgHandle{
         int width = src.cols;
         int height = src.rows;
     
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
+        for (int y = 0; y < height; y ++) {
+            for (int x = 0; x < width; x ++) {
                 cv::Vec3b pixel = src.at<cv::Vec3b>(y, x);
                 if (pixel[0] >= lower[0] - PixelEps[0] && pixel[0] <= upper[0] + PixelEps[0] &&
                     pixel[1] >= lower[1] - PixelEps[1] && pixel[1] <= upper[1] + PixelEps[1] &&
@@ -356,72 +356,97 @@ typedef struct coord{
 Coordinate LeftTop, RightBottom;
 
 int main() {
-    cv::Mat src = cv::imread("D:\\Executive\\Ordinary\\Identify\\001.png");
-    // cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Pictures\\TestImg.png");
-	if (src.empty()) {
-		std::cerr << "Error: Could not open or find the image!" << std::endl;
-		return 1;
-	}
+    std::string FileFolder = "C:\\Users\\Lenovo\\Pictures\\CCLTestImg\\";
+    std::string ResultFolder = FileFolder + "Result\\";
+    for (int i = 0; i < 3; i ++ ){
+        // cv::Mat src = cv::imread("D:\\Executive\\Ordinary\\Identify\\003.png");
+        // cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Pictures\\TestImg.png");
+        cv::Mat src = cv::imread(FileFolder + std::format("{}.png", i + 1));
+        if (src.empty()) {
+            std::cerr << "Error: Could not open or find the image!" << std::endl;
+            return 1;
+        }
 
-    cv::Mat hsvImage = ImgHandle::ConvertImg2HSV(src);
-    cv::Mat Matmask = cv::Mat::zeros(src.size(), CV_8UC1);
-    
-    // ====== OpenCV 原生实现 ======
-    cv::Mat hsv = cv::Mat::zeros(src.size(), CV_8UC1);
-    cv::Mat sMask = cv::Mat::zeros(src.size(), CV_8UC1); // s prefix for source
-    cv::cvtColor(src, hsv, cv::COLOR_BGR2HSV);
-    cv::inRange(hsv, HSVLower, HSVUpper, Matmask);
-    // ============================
+        LeftTop.x = LeftTop.y = RightBottom.x = RightBottom.y = 0;
+        std::memset(mask, 0, sizeof(mask));
+        std::memset(RunsCount, 0, sizeof(RunsCount));
+        std::memset(component, 0, sizeof(component));
+        std::memset(run, 0, sizeof(run));
 
-    ImgHandle::ImgInHsvRange(hsvImage, HSVLower, HSVUpper, sMask, cv::Scalar(10, 5, 5));
-    MatrixMask2IntArray(Matmask);
+        cv::Mat hsvImage = ImgHandle::ConvertImg2HSV(src);
+        cv::Mat Matmask = cv::Mat::zeros(src.size(), CV_8UC1);
+        
+        // ====== OpenCV 原生实现 ======
+        cv::Mat hsv = cv::Mat::zeros(src.size(), CV_8UC1);
+        cv::Mat sMask = cv::Mat::zeros(src.size(), CV_8UC1); // s prefix for source
+        cv::cvtColor(src, hsv, cv::COLOR_BGR2HSV);
+        cv::inRange(hsv, HSVLower, HSVUpper, Matmask);
+        // ============================
 
-    uint16_t RunsCountRow = 0;
-    for (int i = 0; i < MaskHeight; i ++ ){
-        if (FindComponent::ExtractRunsFromRow(mask[i], MaskWidth, run[i], FindComponent::MaxRunsPerRow, &RunsCountRow)){
-            std::cout << std::format("Detected {} runs in row {} ", RunsCountRow, i) << std::endl;
-            RunsCount[i] = RunsCountRow;
-            for (int j = 0; j < RunsCountRow; j ++ ){
-                std::cout << std::format("[{} -> {}]", run[i][j].StartX, run[i][j].EndX) << std::endl;
+        ImgHandle::ImgInHsvRange(hsvImage, HSVLower, HSVUpper, sMask, cv::Scalar(10, 5, 5));
+        MatrixMask2IntArray(Matmask);
+
+        uint16_t RunsCountRow = 0;
+        for (int i = 0; i < MaskHeight; i ++ ){
+            if (FindComponent::ExtractRunsFromRow(mask[i], MaskWidth, run[i], FindComponent::MaxRunsPerRow, &RunsCountRow)){
+                std::cout << std::format("Detected {} runs in row {} ", RunsCountRow, i) << std::endl;
+                RunsCount[i] = RunsCountRow;
+                for (int j = 0; j < RunsCountRow; j ++ ){
+                    std::cout << std::format("[{} -> {}]", run[i][j].StartX, run[i][j].EndX) << std::endl;
+                }
+            }
+            else{
+                std::cout << "No Runs detected in " << i << " row." << std::endl;
             }
         }
+
+        int Label = FindComponent::MergeRunsToComponent(run, component, MaskHeight, RunsCount, FindComponent::MaxRunsPerRow * MaskHeight);
+
+        for (int i = 0; i < MaskHeight; i ++ ){
+            int count = RunsCount[i];
+            for (int j = 0; j < count; j ++ ){
+                std::cout << std::format("[({}, {}) -> ({}, {}), Label: {}]", run[i][j].StartX, i, run[i][j].EndX, i, run[i][j].Label) << std::endl;
+            }
+        }
+
+        FindComponent::PrintComponents(component, Label);
+
+        size_t maxArea = 0;
+        for (int i = 1; i <= Label; i ++ ){
+            if (component[i].area >= maxArea && component[i].Used && component[i].parent == i) {
+                maxArea = component[i].area;
+            
+                LeftTop.x = component[i].minX;
+                LeftTop.y = component[i].minY;
+                RightBottom.x = component[i].maxX;
+                RightBottom.y = component[i].maxY;
+            }
+        }
+
+        if (LeftTop.x == 0 && LeftTop.y == 0 && RightBottom.x == 0 && RightBottom.y == 0){
+            // 没有找到任何连通块
+            std::cout << "No connected component found!" << std::endl;
+        }
         else{
-            std::cout << "No Runs detected in " << i << " row." << std::endl;
+            std::cout << std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y) << std::endl;
+            // cv::imshow("Source Image", src);
+            // cv::imshow("Mask Image", Matmask);
+            // cv::imshow("Source Mask Image", sMask);
+            
+            cv::rectangle(src, cv::Point(LeftTop.x, LeftTop.y), cv::Point(RightBottom.x, RightBottom.y), cv::Scalar(0, 0, 255), 2);
+            // cv::imshow("Result Image", src);
+
+            // cv::waitKey(0); 
+
+            std::string ResultFileName = ResultFolder + std::format("Result_{}.png", i + 1);
+            if (cv::imwrite(ResultFileName, src)){
+                std::cout << "Result image saved to: " << ResultFileName << std::endl;
+            }
+            else{
+                std::cerr << "Error: Could not save the result image!" << std::endl;
+            }
         }
     }
-
-    int Label = FindComponent::MergeRunsToComponent(run, component, MaskHeight, RunsCount, FindComponent::MaxRunsPerRow * MaskHeight);
-
-    for (int i = 0; i < MaskHeight; i ++ ){
-        int count = RunsCount[i];
-        for (int j = 0; j < count; j ++ ){
-            std::cout << std::format("[({}, {}) -> ({}, {}), Label: {}]", run[i][j].StartX, i, run[i][j].EndX, i, run[i][j].Label) << std::endl;
-        }
-    }
-
-    FindComponent::PrintComponents(component, Label);
-
-    size_t maxArea = 0;
-    for (int i = 1; i <= Label; i ++ ){
-        if (component[i].area >= maxArea && component[i].Used && component[i].parent == i) {
-            maxArea = component[i].area;
-        
-            LeftTop.x = component[i].minX;
-            LeftTop.y = component[i].minY;
-            RightBottom.x = component[i].maxX;
-            RightBottom.y = component[i].maxY;
-        }
-    }
-
-    std::cout << std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y) << std::endl;
-    cv::imshow("Source Image", src);
-    cv::imshow("Mask Image", Matmask);
-    cv::imshow("Source Mask Image", sMask);
-    
-    cv::rectangle(src, cv::Point(LeftTop.x, LeftTop.y), cv::Point(RightBottom.x, RightBottom.y), cv::Scalar(0, 0, 255), 2);
-    cv::imshow("Result Image", src);
-
-    cv::waitKey(0); 
 
     return 0;
 }
