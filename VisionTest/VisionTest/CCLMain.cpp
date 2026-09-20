@@ -3,6 +3,12 @@
 #include <opencv2/opencv.hpp>
 
 namespace ImgHandle{
+    /**
+     * @brief 将 BGR 像素值转换为 HSV 像素值
+     * 
+     * @param pixel BGR 像素值
+     * @return cv::Vec3b HSV 像素值
+     */
     static cv::Vec3b ConvertPixelBGR2HSV(const cv::Vec3b& pixel){
         float b = pixel[0] / 255.0f;
         float g = pixel[1] / 255.0f;
@@ -35,6 +41,15 @@ namespace ImgHandle{
         return cv::Vec3b(static_cast<uchar>(h / 2), static_cast<uchar>(s * 255), static_cast<uchar>(v * 255));
     }
     
+    /**
+     * @brief 在 HSV 色彩空间中查找指定范围内的像素
+     * 
+     * @param src 原图像, cv::Mat type
+     * @param lower HSV 色彩空间的下界
+     * @param upper HSV 色彩空间的上节
+     * @param mask [out] 输出的二值掩码图像, 255 表示在范围内, 0 表示不在范围内
+     * @param PixelEps 允许的像素误差, 默认为 (2, 2, 2)
+     */
     static void ImgInHsvRange(const cv::Mat& src, const cv::Scalar& lower, const cv::Scalar& upper, cv::Mat& mask, const cv::Scalar& PixelEps = cv::Scalar(2, 2, 2)) {
         int width = src.cols;
         int height = src.rows;
@@ -55,6 +70,12 @@ namespace ImgHandle{
     
     }
     
+    /**
+     * @brief 将 BGR 图像转换为 HSV 图像
+     * 
+     * @param src 
+     * @return cv::Mat 
+     */
     static cv::Mat ConvertImg2HSV(const cv::Mat& src) {
         cv::Mat res = src.clone();
         int width = src.cols;
@@ -97,6 +118,17 @@ namespace FindComponent{
     constexpr int MaxRunsPerRow = (MaskWidth + 1) / 2;
     constexpr int MaxComponents = MaskWidth * MaskHeight;
 
+    /**
+     * @brief 按行提取游程信息, 将二值图像的每一行中连续的 1 的区域提取为游程, 并记录其起始和结束位置
+     * 
+     * @param MaskPerRow 单行的二值图数组
+     * @param width 二值图的宽度
+     * @param runs [out] 输出的游程数组
+     * @param RunsCapacity 游程数组的容量/允许游程的最大数量
+     * @param RunsCount [out] 得到的单行游程数量
+     * @return true 
+     * @return false 当游程数量超过 RunsCapacity 时返回 false, 表示提取失败
+     */
     static bool ExtractRunsFromRow(const int* MaskPerRow, const uint16_t width, Run* runs, const uint16_t RunsCapacity, uint16_t* RunsCount){
         uint16_t count = 0;
         uint16_t CurrX = 0;
@@ -323,6 +355,11 @@ namespace FindComponent{
     }
 }
 
+/**
+ * @brief 将 cv::Mat 类型的二值掩码图像转换为 int 数组, 1 表示在范围内, 0 表示不在范围内
+ * 
+ * @param Matmask 
+ */
 static void MatrixMask2IntArray(const cv::Mat& Matmask){
     int width = Matmask.cols;
     int height = Matmask.rows;

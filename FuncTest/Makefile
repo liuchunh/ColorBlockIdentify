@@ -1,6 +1,6 @@
 # ===== 可配置变量 =====
 # 源代码文件名（不含扩展名）
-TARGET_NAME := MergeRunsToComponent
+TARGET_NAME := HandleRuns
 
 # 编译选项
 CXXFLAGS := -Wall -Wextra -Wpedantic

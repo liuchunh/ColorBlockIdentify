@@ -312,30 +312,16 @@ Coordinate LeftTop, RightBottom;
 
 int main(){
     uint16_t RunsCountRow = 0;
-    // for (int i = 0; i < MaskHeight; i ++ ){
-    //     if (ExtractRunsFromRow(mask[i], MaskWidth, run[i], MaxRunsPerRow, &RunsCountRow)){
-    //         std::cout << std::format("Detected {} runs in row {} ", RunsCountRow, i) << std::endl;
-    //         RunsCount[i] = RunsCountRow;
-    //         for (int j = 0; j < RunsCountRow; j ++ ){
-    //             std::cout << std::format("[{} -> {}]", run[i][j].StartX, run[i][j].EndX) << std::endl;
-    //         }
-    //     }
-    //     else{
-    //         std::cout << "No Runs detected in " << i << " row." << std::endl;
-    //     }
-    // }
-
-    uint16_t RunsCountCol = 0;
-    for (int i = 0; i < MaskWidth; i ++ ){
-        if (ExtractRunsFromCol(mask[i], MaskHeight, run[i], MaxRunsPerCol, &RunsCountCol)){
-            std::cout << std::format("Detected {} runs in col {} ", RunsCountCol, i) << std::endl;
-            RunsCount[i] = RunsCountCol;
-            for (int j = 0; j < RunsCountCol; j ++ ){
+    for (int i = 0; i < MaskHeight; i ++ ){
+        if (ExtractRunsFromRow(mask[i], MaskWidth, run[i], MaxRunsPerRow, &RunsCountRow)){
+            std::cout << std::format("Detected {} runs in row {} ", RunsCountRow, i) << std::endl;
+            RunsCount[i] = RunsCountRow;
+            for (int j = 0; j < RunsCountRow; j ++ ){
                 std::cout << std::format("[{} -> {}]", run[i][j].StartX, run[i][j].EndX) << std::endl;
             }
         }
         else{
-            std::cout << "No Runs detected in " << i << " col." << std::endl;
+            std::cout << "No Runs detected in " << i << " row." << std::endl;
         }
     }
 

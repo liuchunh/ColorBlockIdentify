@@ -1,0 +1,485 @@
+#include <iostream>
+#include <fstream>
+#include <opencv2/opencv.hpp>
+
+namespace ImgHandle{
+    /**
+     * @brief 将 BGR 像素值转换为 HSV 像素值
+     * 
+     * @param pixel BGR 像素值
+     * @return cv::Vec3b HSV 像素值
+     */
+    static cv::Vec3b ConvertPixelBGR2HSV(const cv::Vec3b& pixel){
+        float b = pixel[0] / 255.0f;
+        float g = pixel[1] / 255.0f;
+        float r = pixel[2] / 255.0f;
+    
+        float max = std::max({ r, g, b });
+        float min = std::min({ r, g, b });
+        float delta = max - min;
+    
+        float h = 0.0f;
+        if (delta != 0) {
+            if (max == r) {
+                h = 60.0f * (fmod(((g - b) / delta), 6.0f));
+            }
+            else if (max == g) {
+                h = 60.0f * (((b - r) / delta) + 2.0f);
+            }
+            else if (max == b) {
+                h = 60.0f * (((r - g) / delta) + 4.0f);
+            }
+        }
+    
+        if (h < 0) {
+            h += 360.0f;
+        }
+    
+        float s = (max == 0) ? 0 : (delta / max);
+        float v = max;
+    
+        return cv::Vec3b(static_cast<uchar>(h / 2), static_cast<uchar>(s * 255), static_cast<uchar>(v * 255));
+    }
+    
+    /**
+     * @brief 在 HSV 色彩空间中查找指定范围内的像素
+     * 
+     * @param src 原图像, cv::Mat type
+     * @param lower HSV 色彩空间的下界
+     * @param upper HSV 色彩空间的上节
+     * @param mask [out] 输出的二值掩码图像, 255 表示在范围内, 0 表示不在范围内
+     * @param PixelEps 允许的像素误差, 默认为 (2, 2, 2)
+     */
+    static void ImgInHsvRange(const cv::Mat& src, const cv::Scalar& lower, const cv::Scalar& upper, cv::Mat& mask, const cv::Scalar& PixelEps = cv::Scalar(2, 2, 2)) {
+        int width = src.cols;
+        int height = src.rows;
+    
+        for (int y = 0; y < height; y ++) {
+            for (int x = 0; x < width; x ++) {
+                cv::Vec3b pixel = src.at<cv::Vec3b>(y, x);
+                if (pixel[0] >= lower[0] - PixelEps[0] && pixel[0] <= upper[0] + PixelEps[0] &&
+                    pixel[1] >= lower[1] - PixelEps[1] && pixel[1] <= upper[1] + PixelEps[1] &&
+                    pixel[2] >= lower[2] - PixelEps[2] && pixel[2] <= upper[2] + PixelEps[2]) {
+                    mask.at<uchar>(y, x) = 255;
+                }
+                else {
+                    mask.at<uchar>(y, x) = 0;
+                }
+            }
+        }
+    
+    }
+    
+    /**
+     * @brief 将 BGR 图像转换为 HSV 图像
+     * 
+     * @param src 
+     * @return cv::Mat 
+     */
+    static cv::Mat ConvertImg2HSV(const cv::Mat& src) {
+        cv::Mat res = src.clone();
+        int width = src.cols;
+        int height = src.rows;
+    
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                res.at<cv::Vec3b>(y, x) = ConvertPixelBGR2HSV(src.at<cv::Vec3b>(y, x));
+            }
+        }
+    
+        return res;
+    }
+}
+
+constexpr int MaskWidth = 1280;
+constexpr int MaskHeight = 720;
+
+int mask[MaskHeight][MaskWidth] = { 0 };
+
+typedef struct _run{
+    uint16_t StartX, EndX;
+    uint16_t Label; // 所属连通块的标签, 0 表示未标记
+} Run;
+
+typedef struct _component{
+    uint16_t parent;
+
+    uint32_t area; // 该连通块目前累计的像素数
+    // uint64_t SumX, SumY; // 该连通块目前累计的像素坐标和, 用于计算质心
+
+    uint16_t minX, minY, maxX, maxY; // 该连通块的边界框 -> 外接矩形
+    // uint16_t SeedX, SeedY; // 该块内任何一个像素的坐标
+
+    bool Used; // 标签槽位是否正在使用
+    bool Active; // 处理完当前行后, 是否还有像素在该连通块中, 用于判断是否需要继续处理下一行
+} Component;
+
+namespace FindComponent{
+    constexpr int MaxRunsPerRow = (MaskWidth + 1) / 2;
+    constexpr int MaxComponents = MaskWidth * MaskHeight;
+
+    /**
+     * @brief 按行提取游程信息, 将二值图像的每一行中连续的 1 的区域提取为游程, 并记录其起始和结束位置
+     * 
+     * @param MaskPerRow 单行的二值图数组
+     * @param width 二值图的宽度
+     * @param runs [out] 输出的游程数组
+     * @param RunsCapacity 游程数组的容量/允许游程的最大数量
+     * @param RunsCount [out] 得到的单行游程数量
+     * @return true 
+     * @return false 当游程数量超过 RunsCapacity 时返回 false, 表示提取失败
+     */
+    static bool ExtractRunsFromRow(const int* MaskPerRow, const uint16_t width, Run* runs, const uint16_t RunsCapacity, uint16_t* RunsCount){
+        uint16_t count = 0;
+        uint16_t CurrX = 0;
+        
+        if (MaskPerRow == nullptr || runs == nullptr || RunsCount == nullptr){
+            return false;
+        }
+    
+        *RunsCount = 0;
+    
+        while (CurrX < width){
+            while (CurrX < width && MaskPerRow[CurrX] == 0){
+                CurrX ++;
+            }
+    
+            if (CurrX >= width){
+                break;
+            }
+    
+            if (count >= RunsCapacity){
+                return false;
+            }
+    
+            runs[count].StartX = CurrX;
+    
+            while (CurrX < width && MaskPerRow[CurrX] != 0){
+                CurrX ++;
+            }
+    
+            runs[count].EndX = CurrX - 1;
+            runs[count].Label = 0; // 初始化为未标记, 在本函数中不修改 label 标签
+            count ++;
+        }
+    
+        *RunsCount = count;
+        return true;
+    }
+
+    
+    /**
+     * @brief 将 Run 的信息更新到 Component 中, 用于计算连通块的面积、质心、边界框等信息
+     * 
+     * @param components 
+     * @param run 
+     * 
+     * @attention 函数在修改 components 时, 请确保 run->Label 已经被正确分配, 且 components[run->Label] 已经被初始化
+     */
+    void UpdateComponent(Component* components, Run run, int RunHeight){
+        uint16_t Label = run.Label;
+        if (Label == 0 || Label >= MaxComponents){
+            return;
+        }
+
+        Component* comp = &components[Label];
+
+        // if (comp->area == 0){
+        //     comp->SeedX = run.StartX;
+        //     comp->SeedY = RunHeight;
+        // }
+
+        int length = run.EndX - run.StartX + 1;
+        comp->area += length;
+        
+        // comp->SumX += (run.StartX + run.EndX) * length / 2; // 累加游程的中点坐标
+        // comp->SumY += length * RunHeight; // 累加游程的行坐标
+        
+        comp->minX = std::min(comp->minX, run.StartX);
+        comp->minY = std::min((int)comp->minY, RunHeight);
+        comp->maxX = std::max(comp->maxX, run.EndX);
+        comp->maxY = std::max((int)comp->maxY, RunHeight);
+    }
+
+    uint16_t Find(Component* components, uint16_t Label){
+        if (Label >= MaxComponents){
+            return 0;
+        }
+
+        uint16_t root = Label;
+        while (components[root].parent != root){
+            root = components[root].parent;
+        }
+
+        while (components[Label].parent != root){
+            uint16_t temp = components[Label].parent;
+            components[Label].parent = root;
+            Label = temp;
+        }
+
+        return root;
+    }
+
+    uint16_t Union(Component* components, uint16_t Label1, uint16_t Label2){
+        if (Label1 >= MaxComponents || Label2 >= MaxComponents){
+            return 0;
+        }
+
+        uint16_t root1 = Find(components, Label1);
+        uint16_t root2 = Find(components, Label2);
+
+        if (root1 != root2){
+            components[root1].parent = root2;
+
+            components[root2].area += components[root1].area;
+            // components[root2].SumX += components[root1].SumX;
+            // components[root2].SumY += components[root1].SumY;
+            components[root2].minX = std::min(components[root2].minX, components[root1].minX);
+            components[root2].minY = std::min(components[root2].minY, components[root1].minY);
+            components[root2].maxX = std::max(components[root2].maxX, components[root1].maxX);
+            components[root2].maxY = std::max(components[root2].maxY, components[root1].maxY);
+        }
+
+        return root2;
+    }
+
+    uint16_t AllocateLabel(Component* components, uint16_t Label){
+        if (Label >= MaxComponents){
+            return 0;
+        }
+
+        components[Label].parent = Label;
+        components[Label].area = 0;
+        // components[Label].SumX = 0;
+        // components[Label].SumY = 0;
+        components[Label].minX = UINT16_MAX;
+        components[Label].minY = UINT16_MAX;
+        components[Label].maxX = 0;
+        components[Label].maxY = 0;
+        // components[Label].SeedX = 0;
+        // components[Label].SeedY = 0;
+        components[Label].Used = true;
+        components[Label].Active = true;
+        return Label;
+    }
+
+    /**
+     * @brief 将游程合并为连通块
+     * 
+     * @param runs 整个 二值图 中的游程信息
+     * @param components 合并出的连通块
+     * @param Height 游程的高度/行数
+     * @param RunsCount int 数组, 记录了每行的游程数
+     * @return int 连通块的个数
+     * 
+     * @attention 函数会修改游程中的 Label 标签和 components (下标从 1 开始), 且请保证 runs, components, RunsCount 不为 null pointer
+     */
+    int MergeRunsToComponent(Run runs[][MaxRunsPerRow], Component* components, int Height, const int RunsCount[MaskHeight], const int MaxLabelCount){
+        if (runs == nullptr || components == nullptr || MaxLabelCount < 0){
+            return false;
+        }
+
+        int Label = 0;
+
+        // 第一行单独分配, 显然第一行上方没有游程, 则一一分配
+        int count = RunsCount[0];
+        for (int i = 0; i < count; i ++){
+            Label ++;
+            runs[0][i].Label = AllocateLabel(components, Label);
+        }
+
+        for (int h = 1; h < Height; h ++ ){
+            int count = RunsCount[h];
+            for (int index = 0; index < count; index ++ ){
+                Run* curr = &runs[h][index];
+                bool AllocatedLabel = false;
+
+                // 显然左右不可能再合并了, 不然就进到同一游程了
+                // 因此我们考虑上下合并, 即当前游程的上部是否存在游程, 如果存在则使用同一标签, 如果不就新开标签
+                for (int LastRowRunIndex = 0; LastRowRunIndex < RunsCount[h - 1]; LastRowRunIndex ++ ){
+                    Run* prev = &runs[h - 1][LastRowRunIndex];
+                    if (prev->EndX < curr->StartX) continue; // 上一行游程结束位置比当前 (curr) 的开始位置还早, 即无重叠
+                    if (curr->EndX < prev->StartX) continue; // 上一行游程开始位置比当前的结束位置还早
+                    if (curr->Label == 0){ // 当前游程还没有分配标签, 则使用上一行的游程标签
+                        curr->Label = prev->Label;
+                    }
+                    else{
+                        // 之前已经分配有标签了
+                        // 此时我们考虑使用并查集合并标签
+                        Union(components, curr->Label, prev->Label);
+                    }
+                    AllocatedLabel = true;
+                }
+
+                // 如果当前游程没有与上一行的游程重叠, 则分配一个新的标签
+                if (!AllocatedLabel){
+                    Label ++;
+                    curr->Label = AllocateLabel(components, Label);
+                }
+            }
+        }
+
+        // 最后我们需要将所有游程的标签更新为最终的根标签, 并更新连通块的信息
+        for (int h = 0; h < Height; h ++ ){
+            for (int w = 0; w < RunsCount[h]; w ++ ){
+                Run* curr = &runs[h][w];
+                if (curr->Label != 0){
+                    curr->Label = Find(components, curr->Label);
+                    UpdateComponent(components, *curr, h);
+                }
+            }
+        }
+
+        return Label;
+    }
+
+    void PrintComponents(const Component* components, int count){
+        for (int i = 1; i <= count; i ++ ){
+            const Component* comp = &components[i];
+            if (comp->Used){
+                if (comp->area == 0){
+                    std::cerr << std::format("Component {}: Area is 0, this should not happen!", i) << std::endl;
+                }
+                else if (comp->area > 0){
+                    /*
+                    std::cout << std::format("Component {}: SumX: {}, SumY: {}, Area: {}, Centroid: ({}, {}), Bounding Box: [({}, {}) -> ({}, {})], Seed: ({}, {}), Parent: {}", 
+                    i, comp->SumX, comp->SumY, comp->area, comp->SumX / comp->area, comp->SumY / comp->area, 
+                    comp->minX, comp->minY, comp->maxX, comp->maxY,
+                    comp->SeedX, comp->SeedY, comp->parent) << std::endl;
+                    */
+                std::cout << std::format("Component {}: Area: {}, Bounding Box: [({}, {}) -> ({}, {})], Parent: {}", 
+                    i, comp->area, comp->minX, comp->minY, comp->maxX, comp->maxY, comp->parent) << std::endl;
+                }
+            }
+        }
+    }
+}
+
+/**
+ * @brief 将 cv::Mat 类型的二值掩码图像转换为 int 数组, 1 表示在范围内, 0 表示不在范围内
+ * 
+ * @param Matmask 
+ */
+static void MatrixMask2IntArray(const cv::Mat& Matmask){
+    int width = Matmask.cols;
+    int height = Matmask.rows;
+
+    assert(MaskWidth >= width && MaskHeight >= height);
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            if (Matmask.at<uchar>(y, x) > 0) {
+                mask[y][x] = 1;
+            }
+            else {
+                mask[y][x] = 0;
+            }
+        }
+    }
+}
+
+const cv::Scalar HSVLower(100, 43, 46);
+const cv::Scalar HSVUpper(124, 255, 255);
+
+Run run[MaskHeight][FindComponent::MaxRunsPerRow];
+int RunsCount[MaskHeight];
+Component component[FindComponent::MaxRunsPerRow * MaskHeight];
+
+typedef struct coord{
+    uint16_t x, y;
+} Coordinate;
+
+// 最大连通块的两个角. 用于画出外接矩形
+Coordinate LeftTop, RightBottom;
+
+int main() {
+    cv::Mat src = cv::imread("D:\\Executive\\Ordinary\\Identify\\003.png");
+        // cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Pictures\\TestImg.png");
+    if (src.empty()) {
+        std::cerr << "Error: Could not open or find the image!" << std::endl;
+        return 1;
+    }
+
+    LeftTop.x = LeftTop.y = RightBottom.x = RightBottom.y = 0;
+    std::memset(mask, 0, sizeof(mask));
+    std::memset(RunsCount, 0, sizeof(RunsCount));
+    std::memset(component, 0, sizeof(component));
+    std::memset(run, 0, sizeof(run));
+
+    cv::Mat hsvImage = ImgHandle::ConvertImg2HSV(src);
+    cv::Mat Matmask = cv::Mat::zeros(src.size(), CV_8UC1);
+    
+    // ====== OpenCV 原生实现 ======
+    cv::Mat hsv = cv::Mat::zeros(src.size(), CV_8UC1);
+    cv::Mat sMask = cv::Mat::zeros(src.size(), CV_8UC1); // s prefix for source
+    cv::cvtColor(src, hsv, cv::COLOR_BGR2HSV);
+    cv::inRange(hsv, HSVLower, HSVUpper, Matmask);
+    // ============================
+
+    ImgHandle::ImgInHsvRange(hsvImage, HSVLower, HSVUpper, sMask, cv::Scalar(10, 5, 5));
+    MatrixMask2IntArray(Matmask);
+
+    uint16_t RunsCountRow = 0;
+    for (int i = 0; i < MaskHeight; i ++ ){
+        if (FindComponent::ExtractRunsFromRow(mask[i], MaskWidth, run[i], FindComponent::MaxRunsPerRow, &RunsCountRow)){
+            std::cout << std::format("Detected {} runs in row {} ", RunsCountRow, i) << std::endl;
+            RunsCount[i] = RunsCountRow;
+            for (int j = 0; j < RunsCountRow; j ++ ){
+                std::cout << std::format("[{} -> {}]", run[i][j].StartX, run[i][j].EndX) << std::endl;
+            }
+        }
+        else{
+            std::cout << "No Runs detected in " << i << " row." << std::endl;
+        }
+    }
+
+    int Label = FindComponent::MergeRunsToComponent(run, component, MaskHeight, RunsCount, FindComponent::MaxRunsPerRow * MaskHeight);
+
+    for (int i = 0; i < MaskHeight; i ++ ){
+        int count = RunsCount[i];
+        for (int j = 0; j < count; j ++ ){
+            std::cout << std::format("[({}, {}) -> ({}, {}), Label: {}]", run[i][j].StartX, i, run[i][j].EndX, i, run[i][j].Label) << std::endl;
+        }
+    }
+
+    FindComponent::PrintComponents(component, Label);
+
+    size_t maxArea = 0;
+    for (int i = 1; i <= Label; i ++ ){
+        if (component[i].area >= maxArea && component[i].Used && component[i].parent == i) {
+            maxArea = component[i].area;
+        
+            LeftTop.x = component[i].minX;
+            LeftTop.y = component[i].minY;
+            RightBottom.x = component[i].maxX;
+            RightBottom.y = component[i].maxY;
+        }
+    }
+
+    if (LeftTop.x == 0 && LeftTop.y == 0 && RightBottom.x == 0 && RightBottom.y == 0){
+        // 没有找到任何连通块
+        std::cout << "No connected component found!" << std::endl;
+    }
+    else{
+        std::cout << std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y) << std::endl;
+        // cv::imshow("Source Image", src);
+        // cv::imshow("Mask Image", Matmask);
+        // cv::imshow("Source Mask Image", sMask);
+        
+        cv::rectangle(src, cv::Point(LeftTop.x, LeftTop.y), cv::Point(RightBottom.x, RightBottom.y), cv::Scalar(0, 0, 255), 2);
+        // cv::imshow("Result Image", src);
+
+        // cv::waitKey(0); 
+
+        std::string ResultFileName = ResultFolder + std::format("Result_{}.png", i + 1);
+        if (cv::imwrite(ResultFileName, src)){
+            std::cout << "Result image saved to: " << ResultFileName << std::endl;
+        }
+        else{
+            std::cerr << "Error: Could not save the result image!" << std::endl;
+        }
+    }
+    
+
+    return 0;
+}
