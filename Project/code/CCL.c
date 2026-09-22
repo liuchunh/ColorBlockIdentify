@@ -7,69 +7,69 @@
 
 #include "CCL.h"
 
-void ConvertPixelRGB2HSV(unsigned short pixel, unsigned char* hue, unsigned char* sat, unsigned char* val){
+void ConvertPixelRGB2HSV(uint16_t pixel, uint8_t* hue, uint8_t* sat, uint8_t* val){
     /* Expand RGB565 channels to the 8-bit range by bit replication. */
-    unsigned char r = (unsigned char)(((pixel >> 8) & 0xF8U) |
+    uint8_t r = (uint8_t)(((pixel >> 8) & 0xF8U) |
                                       ((pixel >> 13) & 0x07U));
-    unsigned char g = (unsigned char)(((pixel >> 3) & 0xFCU) |
+    uint8_t g = (uint8_t)(((pixel >> 3) & 0xFCU) |
                                       ((pixel >> 9) & 0x03U));
-    unsigned char b = (unsigned char)(((pixel << 3) & 0xF8U) |
+    uint8_t b = (uint8_t)(((pixel << 3) & 0xF8U) |
                                       ((pixel >> 2) & 0x07U));
 
-    unsigned char max = r;
-    unsigned char min = r;
+    uint8_t max = r;
+    uint8_t min = r;
     if (g > max) max = g;
     if (b > max) max = b;
     if (g < min) min = g;
     if (b < min) min = b;
 
-    unsigned char delta = (unsigned char)(max - min);
-    unsigned char h = 0U;
+    uint8_t delta = (uint8_t)(max - min);
+    uint8_t h = 0U;
 
     if (delta != 0U) {
-        unsigned short numerator;
-        unsigned char offset;
+        uint16_t numerator;
+        uint8_t offset;
 
         if (max == r) {
             /* H = 30 * (G - B) / delta in OpenCV's 0..179 scale. */
             if (g >= b) {
-                numerator = (unsigned short)(30U * (unsigned short)(g - b));
-                offset = (unsigned char)((numerator + delta / 2U) / delta);
+                numerator = (uint16_t)(30U * (uint16_t)(g - b));
+                offset = (uint8_t)((numerator + delta / 2U) / delta);
                 h = offset;
             } else {
-                numerator = (unsigned short)(30U * (unsigned short)(b - g));
-                offset = (unsigned char)((numerator + delta / 2U) / delta);
-                h = (unsigned char)(180U - offset);
+                numerator = (uint16_t)(30U * (uint16_t)(b - g));
+                offset = (uint8_t)((numerator + delta / 2U) / delta);
+                h = (uint8_t)(180U - offset);
             }
         } else if (max == g) {
             /* H = 60 + 30 * (B - R) / delta. */
             if (b >= r) {
-                numerator = (unsigned short)(30U * (unsigned short)(b - r));
-                offset = (unsigned char)((numerator + delta / 2U) / delta);
-                h = (unsigned char)(60U + offset);
+                numerator = (uint16_t)(30U * (uint16_t)(b - r));
+                offset = (uint8_t)((numerator + delta / 2U) / delta);
+                h = (uint8_t)(60U + offset);
             } else {
-                numerator = (unsigned short)(30U * (unsigned short)(r - b));
-                offset = (unsigned char)((numerator + delta / 2U) / delta);
-                h = (unsigned char)(60U - offset);
+                numerator = (uint16_t)(30U * (uint16_t)(r - b));
+                offset = (uint8_t)((numerator + delta / 2U) / delta);
+                h = (uint8_t)(60U - offset);
             }
         } else {
             /* H = 120 + 30 * (R - G) / delta. */
             if (r >= g) {
-                numerator = (unsigned short)(30U * (unsigned short)(r - g));
-                offset = (unsigned char)((numerator + delta / 2U) / delta);
-                h = (unsigned char)(120U + offset);
+                numerator = (uint16_t)(30U * (uint16_t)(r - g));
+                offset = (uint8_t)((numerator + delta / 2U) / delta);
+                h = (uint8_t)(120U + offset);
             } else {
-                numerator = (unsigned short)(30U * (unsigned short)(g - r));
-                offset = (unsigned char)((numerator + delta / 2U) / delta);
-                h = (unsigned char)(120U - offset);
+                numerator = (uint16_t)(30U * (uint16_t)(g - r));
+                offset = (uint8_t)((numerator + delta / 2U) / delta);
+                h = (uint8_t)(120U - offset);
             }
         }
 
-        if (h >= 180U) h = (unsigned char)(h - 180U);
+        if (h >= 180U) h = (uint8_t)(h - 180U);
     }
 
     *hue = h;
-    *sat = (unsigned char)((max == 0U) ? 0U :
+    *sat = (uint8_t)((max == 0U) ? 0U :
                            (delta * 255U + max / 2U) / max);
     *val = max;
 }
@@ -81,14 +81,14 @@ void ConvertPixelRGB2HSV(unsigned short pixel, unsigned char* hue, unsigned char
  * 
  * @attention 该函数会将转换后的 HSV 图像存储在全局变量 hsvImage 中, 该变量的大小为 MaskHeight x MaskWidth, 且在每次调用前会将 hsvImage 清空
  */
-void ConvertImg2HSV(const unsigned char src[MaskHeight][MaskWidth]){
+void ConvertImg2HSV(const uint16_t src[MaskHeight][MaskWidth]){
     memset(hsvImage, 0, sizeof(hsvImage));
-    unsigned char width = SCC8660_W;
-    unsigned char height = SCC8660_H;
+    uint8_t width = SCC8660_W;
+    uint8_t height = SCC8660_H;
 
-    for (unsigned char y = 0; y < height; y ++ ){
-        for (unsigned char x = 0; x < width; x ++ ){
-            unsigned char h, s, v;
+    for (uint8_t y = 0; y < height; y ++ ){
+        for (uint8_t x = 0; x < width; x ++ ){
+            uint8_t h, s, v;
             ConvertPixelRGB2HSV(src[y][x], &h, &s, &v);
             hsvImage[y][x].h = h;
             hsvImage[y][x].s = s;
@@ -108,12 +108,12 @@ void ConvertImg2HSV(const unsigned char src[MaskHeight][MaskWidth]){
  * @attention 该函数会将结果存储在全局变量 mask 中, 该变量的大小为 MaskHeight x MaskWidth, 且在每次调用前会将 mask 清空
  */
 void ImgInHsvRange(const Vec3b src[MaskHeight][MaskWidth], const Vec3b lower, const Vec3b upper, const Vec3b PixelEps){
-    unsigned char width = SCC8660_W;
-    unsigned char height = SCC8660_H;
+    uint8_t width = SCC8660_W;
+    uint8_t height = SCC8660_H;
     memset(mask, 0, sizeof(mask));
 
-    for (unsigned char y = 0; y < height; y ++ ){
-        for (unsigned char x = 0; x < width; x ++ ){
+    for (uint8_t y = 0; y < height; y ++ ){
+        for (uint8_t x = 0; x < width; x ++ ){
             if (src[y][x].h >= (int16_t)(lower.h - PixelEps.h) && src[y][x].h <= (int16_t)(upper.h + PixelEps.h) &&
                 src[y][x].s >= (int16_t)(lower.s - PixelEps.s) && src[y][x].s <= (int16_t)(upper.s + PixelEps.s) &&
                 src[y][x].v >= (int16_t)(lower.v - PixelEps.v) && src[y][x].v <= (int16_t)(upper.v + PixelEps.v)){
@@ -138,7 +138,7 @@ void ImgInHsvRange(const Vec3b src[MaskHeight][MaskWidth], const Vec3b lower, co
  * @return true 
  * @return false 当游程数量超过 RunsCapacity 时返回 false, 表示提取失败
  */
-bool ExtractRunsFromRow(const uint16* MaskPerRow, const uint16_t width, Run* runs, const uint16_t RunsCapacity, uint16_t* RunsCount){
+bool ExtractRunsFromRow(const uint8_t* MaskPerRow, const uint16_t width, Run* runs, const uint16_t RunsCapacity, uint8_t* RunsCount){
     uint16_t count = 0;
     uint16_t CurrX = 0;
     
@@ -185,7 +185,7 @@ bool ExtractRunsFromRow(const uint16* MaskPerRow, const uint16_t width, Run* run
  * 
  * @attention 函数在修改 components 时, 请确保 run->Label 已经被正确分配, 且 components[run->Label] 已经被初始化
  */
-void UpdateComponent(Component* components, Run run, uint16 RunHeight){
+void UpdateComponent(Component* components, Run run, uint16_t RunHeight){
     uint16_t Label = run.Label;
     if (Label == 0 || Label >= MaxComponents){
         return;
@@ -193,21 +193,12 @@ void UpdateComponent(Component* components, Run run, uint16 RunHeight){
 
     Component* comp = &components[Label];
 
-    // if (comp->area == 0){
-    //     comp->SeedX = run.StartX;
-    //     comp->SeedY = RunHeight;
-    // }
-
-    int length = run.EndX - run.StartX + 1;
+    uint8_t length = run.EndX - run.StartX + 1;
     comp->area += length;
-    
-    // comp->SumX += (run.StartX + run.EndX) * length / 2; // 累加游程的中点坐标
-    // comp->SumY += length * RunHeight; // 累加游程的行坐标
-    
     comp->minX = min(comp->minX, run.StartX);
-    comp->minY = min((int)comp->minY, RunHeight);
+    comp->minY = min((uint16_t)comp->minY, RunHeight);
     comp->maxX = max(comp->maxX, run.EndX);
-    comp->maxY = max((int)comp->maxY, RunHeight);
+    comp->maxY = max((uint16_t)comp->maxY, RunHeight);
 }
 
 uint16_t Find(Component* components, uint16_t Label){
@@ -283,7 +274,7 @@ uint16_t AllocateLabel(Component* components, uint16_t Label){
  * 
  * @attention 函数会修改游程中的 Label 标签和 components (下标从 1 开始), 且请保证 runs, components, RunsCount 不为 null pointer
  */
-int MergeRunsToComponent(Run runs[][MaxRunsPerRow], Component* components, unsigned char Height, const unsigned char RunsCount[MaskHeight], const uint16 MaxLabelCount){
+int MergeRunsToComponent(Run runs[][MaxRunsPerRow], Component* components, uint8_t Height, const uint8_t RunsCount[MaskHeight], const uint16 MaxLabelCount){
     if (runs == NULL || components == NULL || MaxLabelCount < 0){
         return false;
     }

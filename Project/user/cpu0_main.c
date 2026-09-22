@@ -79,7 +79,7 @@ Vec3b hsvImage[MaskHeight][MaskWidth];
 unsigned char mask[MaskHeight][MaskWidth];
 
 Run run[MaskHeight][MaxRunsPerRow];
-uint16_t RunsCount[MaskHeight];
+uint8_t RunsCount[MaskHeight];
 Component component[MaxRunsPerRow * MaskHeight];
 
 unsigned char LeftTopX, LeftTopY, RightBottomX, RightBottomY;
