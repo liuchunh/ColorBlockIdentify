@@ -18,6 +18,7 @@ typedef struct _component{
 
 constexpr int MaskHeight = 4;
 constexpr int MaskWidth = 7;
+constexpr int TotalMaxComponents = 96; // 先做测试, 因为我在 1k 照片中只发现了 59 个标签, 开太多了
 
 constexpr int MaxRunsPerRow = (MaskWidth + 1) / 2;
 
@@ -37,7 +38,7 @@ Run CurrentRowRun[MaxRunsPerRow], LastRowRun[MaxRunsPerRow];
 size_t LastRowRunCount = 0; // Current Row Run Count 使用 RunIndex 即可
 
 namespace LabelOperation{
-    constexpr int MaxComponents = 64;
+    constexpr int MaxComponents = MaxRunsPerRow * MaskHeight;
 
     /**
      * @brief 分配一个新的标签给连通块, 并初始化该连通块的属性
@@ -152,7 +153,7 @@ void PrintComponents(const Component* components, int count){
     }
 }
 
-Component components[MaxRunsPerRow * MaskHeight]; // 下标从 1 开始, 0 表示未分配
+Component components[MaxRunsPerRow * MaskHeight + 1]; // 下标从 1 开始, 0 表示未分配
 
 int main(){
     int Label = 0;
