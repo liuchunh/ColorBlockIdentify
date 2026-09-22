@@ -178,6 +178,15 @@ uint16_t Union(Component* components, uint16_t Label1, uint16_t Label2){
     return root2;
 }
 
+/**
+ * @brief 分配一个新的标签给连通块, 并初始化该连通块的属性
+ * 
+ * @param components 
+ * @param Label 
+ * @return uint16_t 
+ * 
+ * @attention 使用此函数前请先 Label++ 来使用新的连通块
+ */
 uint16_t AllocateLabel(Component* components, uint16_t Label){
     if (Label >= MaxComponents){
         return 0;
