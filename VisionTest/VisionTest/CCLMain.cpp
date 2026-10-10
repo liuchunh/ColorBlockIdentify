@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <opencv2/opencv.hpp>
+#include <chrono>
 
 namespace ImgHandle{
     /**
@@ -392,17 +393,27 @@ typedef struct coord{
 // 最大连通块的两个角. 用于画出外接矩形
 Coordinate LeftTop, RightBottom;
 
+constexpr int TestImgCount = 4;
+static double SumDuration = 0.0;
+
 int main() {
     std::string FileFolder = "C:\\Users\\Lenovo\\Pictures\\CCLTestImg\\";
     std::string ResultFolder = FileFolder + "Result\\";
-    for (int i = 0; i < 3; i ++ ){
+    for (int i = 0; i < TestImgCount; i ++ ){
         // cv::Mat src = cv::imread("D:\\Executive\\Ordinary\\Identify\\003.png");
         // cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Pictures\\TestImg.png");
-        cv::Mat src = cv::imread(FileFolder + std::format("{}.png", i + 1));
+        std::string FilePath = std::format("{}{}.png", FileFolder, i + 1);
+        cv::Mat src = cv::imread(FilePath);
+
+        // cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Downloads\\output-image.png");
         if (src.empty()) {
             std::cerr << "Error: Could not open or find the image!" << std::endl;
             return 1;
         }
+
+        std::cout << std::format("Processing image: {}", FilePath) << std::endl;
+
+        auto start = std::chrono::high_resolution_clock::now();
 
         LeftTop.x = LeftTop.y = RightBottom.x = RightBottom.y = 0;
         std::memset(mask, 0, sizeof(mask));
@@ -426,27 +437,27 @@ int main() {
         uint16_t RunsCountRow = 0;
         for (int i = 0; i < MaskHeight; i ++ ){
             if (FindComponent::ExtractRunsFromRow(mask[i], MaskWidth, run[i], FindComponent::MaxRunsPerRow, &RunsCountRow)){
-                std::cout << std::format("Detected {} runs in row {} ", RunsCountRow, i) << std::endl;
+                // std::cout << std::format("Detected {} runs in row {} ", RunsCountRow, i) << std::endl;
                 RunsCount[i] = RunsCountRow;
-                for (int j = 0; j < RunsCountRow; j ++ ){
-                    std::cout << std::format("[{} -> {}]", run[i][j].StartX, run[i][j].EndX) << std::endl;
-                }
+                // for (int j = 0; j < RunsCountRow; j ++ ){
+                //     std::cout << std::format("[{} -> {}]", run[i][j].StartX, run[i][j].EndX) << std::endl;
+                // }
             }
             else{
-                std::cout << "No Runs detected in " << i << " row." << std::endl;
+                // std::cout << "No Runs detected in " << i << " row." << std::endl;
             }
         }
 
         int Label = FindComponent::MergeRunsToComponent(run, component, MaskHeight, RunsCount, FindComponent::MaxRunsPerRow * MaskHeight);
 
-        for (int i = 0; i < MaskHeight; i ++ ){
-            int count = RunsCount[i];
-            for (int j = 0; j < count; j ++ ){
-                std::cout << std::format("[({}, {}) -> ({}, {}), Label: {}]", run[i][j].StartX, i, run[i][j].EndX, i, run[i][j].Label) << std::endl;
-            }
-        }
+        // for (int i = 0; i < MaskHeight; i ++ ){
+        //     int count = RunsCount[i];
+        //     for (int j = 0; j < count; j ++ ){
+        //         std::cout << std::format("[({}, {}) -> ({}, {}), Label: {}]", run[i][j].StartX, i, run[i][j].EndX, i, run[i][j].Label) << std::endl;
+        //     }
+        // }
 
-        FindComponent::PrintComponents(component, Label);
+        // FindComponent::PrintComponents(component, Label);
 
         size_t maxArea = 0;
         for (int i = 1; i <= Label; i ++ ){
@@ -459,6 +470,11 @@ int main() {
                 RightBottom.y = component[i].maxY;
             }
         }
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> duration = end - start;
+
+        SumDuration += duration.count();
+        std::cout << std::format("Duration: {:.6f} seconds\n", duration.count());
 
         if (LeftTop.x == 0 && LeftTop.y == 0 && RightBottom.x == 0 && RightBottom.y == 0){
             // 没有找到任何连通块
@@ -470,20 +486,21 @@ int main() {
             // cv::imshow("Mask Image", Matmask);
             // cv::imshow("Source Mask Image", sMask);
             
-            cv::rectangle(src, cv::Point(LeftTop.x, LeftTop.y), cv::Point(RightBottom.x, RightBottom.y), cv::Scalar(0, 0, 255), 2);
-            // cv::imshow("Result Image", src);
+            // cv::rectangle(src, cv::Point(LeftTop.x, LeftTop.y), cv::Point(RightBottom.x, RightBottom.y), cv::Scalar(0, 0, 255), 2);
 
+            // cv::imshow("Result Image", src);
             // cv::waitKey(0); 
 
-            std::string ResultFileName = ResultFolder + std::format("Result_{}.png", i + 1);
-            if (cv::imwrite(ResultFileName, src)){
-                std::cout << "Result image saved to: " << ResultFileName << std::endl;
-            }
-            else{
-                std::cerr << "Error: Could not save the result image!" << std::endl;
-            }
+            // std::string ResultFileName = ResultFolder + std::format("Result_{}.png", i + 1);
+            // if (cv::imwrite(ResultFileName, src)){
+            //     std::cout << "Result image saved to: " << ResultFileName << std::endl;
+            // }
+            // else{
+            //     std::cerr << "Error: Could not save the result image!" << std::endl;
+            // }
         }
     }
 
+    std::cout << std::format("Average Duration: {:.6f} seconds\n", SumDuration / static_cast<double>(TestImgCount));
     return 0;
 }

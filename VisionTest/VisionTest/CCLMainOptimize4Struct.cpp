@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <opencv2/opencv.hpp>
+#include <chrono>
 
 namespace ImgHandle{
     /**
@@ -234,16 +235,31 @@ namespace FindComponent{
         uint16_t root1 = Find(components, Label1);
         uint16_t root2 = Find(components, Label2);
 
-        if (root1 != root2){
-            components[root1].parent = root2;
+        uint16_t areaRoot1 = components[root1].area;
+        uint16_t areaRoot2 = components[root2].area;
 
-            components[root2].area += components[root1].area;
-            // components[root2].SumX += components[root1].SumX;
-            // components[root2].SumY += components[root1].SumY;
-            components[root2].minX = std::min(components[root2].minX, components[root1].minX);
-            components[root2].minY = std::min(components[root2].minY, components[root1].minY);
-            components[root2].maxX = std::max(components[root2].maxX, components[root1].maxX);
-            components[root2].maxY = std::max(components[root2].maxY, components[root1].maxY);
+        if (root1 != root2){
+            // 把面积更小的连通块 Root1 挂到面积更大的连通块 Root2 上, 以减少树的高度
+            if (areaRoot1 <= areaRoot2){
+                components[root1].parent = root2;
+
+                components[root2].area += components[root1].area;
+                // components[root2].SumX += components[root1].SumX;
+                // components[root2].SumY += components[root1].SumY;
+                components[root2].minX = std::min(components[root2].minX, components[root1].minX);
+                components[root2].minY = std::min(components[root2].minY, components[root1].minY);
+                components[root2].maxX = std::max(components[root2].maxX, components[root1].maxX);
+                components[root2].maxY = std::max(components[root2].maxY, components[root1].maxY);
+            }
+            else{
+                components[root2].parent = root1;
+
+                components[root1].area += components[root2].area;
+                components[root1].minX = std::min(components[root1].minX, components[root2].minX);
+                components[root1].minY = std::min(components[root1].minY, components[root2].minY);
+                components[root1].maxX = std::max(components[root1].maxX, components[root2].maxX);
+                components[root1].maxY = std::max(components[root1].maxY, components[root2].maxY);
+            }
         }
 
         return root2;
@@ -404,20 +420,39 @@ typedef struct coord{
 Coordinate LeftTop, RightBottom;
 
 bool IsPixelInRange(const cv::Vec3b& pixel, const cv::Scalar& lower, const cv::Scalar& upper, const cv::Scalar& PixelEps = cv::Scalar(2, 2, 2)) {
-    return (pixel[0] >= lower[0] - PixelEps[0] && pixel[0] <= upper[0] + PixelEps[0] &&
-            pixel[1] >= lower[1] - PixelEps[1] && pixel[1] <= upper[1] + PixelEps[1] &&
-            pixel[2] >= lower[2] - PixelEps[2] && pixel[2] <= upper[2] + PixelEps[2]);
+    // TODO: 如果在所有的调用中, lower 和 upper 都是固定的, 那么可以考虑只计算一次
+    static cv::Scalar lowerBound = lower - PixelEps;
+    static cv::Scalar upperBound = upper + PixelEps;
+    return (pixel[0] >= lowerBound[0] && pixel[0] <= upperBound[0] &&
+            pixel[1] >= lowerBound[1] && pixel[1] <= upperBound[1] &&
+            pixel[2] >= lowerBound[2] && pixel[2] <= upperBound[2]);
 }
 
+#define TEST_MODE_ENABLED 0
+
+constexpr int TestImgCount = 4;
+static double SumDuration = 0.0;
+
 int main() {
+#if TEST_MODE_ENABLED
+    std::string FileFolder = "C:\\Users\\Lenovo\\Pictures\\CCLTestImg\\";
+    for (int i = 0; i < TestImgCount; i ++ ){
+        std::string FilePath = std::format("{}{}.png", FileFolder, i + 1);
+        cv::Mat src = cv::imread(FilePath);
+        std::cout << std::format("Processing image: {}", FilePath) << std::endl;
+
+#else
     cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Downloads\\output-image.png");
-	//cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Pictures\\CCLTestImg\\1.png");
+#endif    
+
     if (src.empty()) {
         std::cerr << "Error: Could not open or find the image!" << std::endl;
         return 1;
     }
 
-    std::cout << std::format("sizeof(component2) = {}, sizeof(component3) = {}", sizeof(Component2), sizeof(Component3)) << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // std::cout << std::format("sizeof(component2) = {}, sizeof(component3) = {}", sizeof(Component2), sizeof(Component3)) << std::endl;
 
     LeftTop.x = LeftTop.y = RightBottom.x = RightBottom.y = 0;
     std::memset(RunsCount, 0, sizeof(RunsCount));
@@ -500,7 +535,7 @@ int main() {
 		std::memset(CurrentRowRun, 0, sizeof(CurrentRowRun));
     }
 
-    FindComponent::PrintComponents(components, Label);
+    // FindComponent::PrintComponents(components, Label);
 
     size_t maxArea = 0;
     for (int i = 1; i <= Label; i ++ ){
@@ -513,6 +548,10 @@ int main() {
             RightBottom.y = components[i].maxY;
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << std::format("Duration: {:.6f} seconds\n", duration.count());
+    SumDuration += duration.count();
 
     if (LeftTop.x == 0 && LeftTop.y == 0 && RightBottom.x == 0 && RightBottom.y == 0){
         // 没有找到任何连通块
@@ -520,16 +559,22 @@ int main() {
     }
     else{
         std::cout << std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y) << std::endl;
-        cv::imshow("Source Image", src);
+        // cv::imshow("Source Image", src);
         // cv::imshow("Mask Image", Matmask);
         // cv::imshow("Source Mask Image", sMask);
-        
+#if TEST_MODE_ENABLED
+#else
+        cv::imshow("Source Image", src);
         cv::rectangle(src, cv::Point(LeftTop.x, LeftTop.y), cv::Point(RightBottom.x, RightBottom.y), cv::Scalar(0, 0, 255), 2);
         cv::imshow("Result Image", src);
-
         cv::waitKey(0); 
+#endif
     }
-    
+#if TEST_MODE_ENABLED
+    }
+
+    std::cout << std::format("Average Duration: {:.6f} seconds\n", SumDuration / static_cast<double>(TestImgCount));
+#endif
 
     return 0;
 }
