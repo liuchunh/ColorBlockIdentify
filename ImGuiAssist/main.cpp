@@ -249,7 +249,7 @@ int main(int, char**)
 
 #else
         //cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Downloads\\output-image.png");
-        static std::string message;
+        static std::string message, res; 
         cv::Mat src;
 		cap >> src; // 从摄像头读取一帧图像
 #endif  
@@ -349,13 +349,15 @@ int main(int, char**)
                 RightBottom.y = components[i].maxY;
             }
         }
-        std::cout << std::format("Current FPS: {}", cap.get(cv::CAP_PROP_FPS)) << std::endl;
+        // std::cout << std::format("Current FPS: {}", cap.get(cv::CAP_PROP_FPS)) << std::endl;
         if (LeftTop.x == 0 && LeftTop.y == 0 && RightBottom.x == 0 && RightBottom.y == 0) {
             // 没有找到任何连通块
-            std::cout << "No connected component found!" << std::endl;
+            // std::cout << "No connected component found!" << std::endl;
+            res = "No connected component found!";
         }
         else {
-            std::cout << std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y) << std::endl;
+            // std::cout << std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y) << std::endl;
+            res = std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y);
             // cv::imshow("Source Image", src);
             // cv::imshow("Mask Image", Matmask);
             // cv::imshow("Source Mask Image", sMask);
@@ -398,7 +400,8 @@ int main(int, char**)
             message = std::format("Target Color: [{}, {}, {}], Color Known: {}", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2], ColorKnown);
         }
         ImGui::Text(message.c_str());
-
+        ImGui::Text(res.c_str());
+        ImGui::Text(std::format("Current FPS: {}", cap.get(cv::CAP_PROP_FPS)).c_str());
         ImGui::End();
 
         // --------------- Own Render Code ---------------
