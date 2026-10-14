@@ -93,7 +93,7 @@ static int RunsCount[MaskHeight];
 static Component components[FindComponent::MaxComponents];
 // 最大连通块的两个角. 用于画出外接矩形
 Coordinate LeftTop, RightBottom;
-cv::Vec3b TargetHSVLower, TargetHSVUpper;
+static cv::Vec3b TargetHSVLower, TargetHSVUpper;
 
 static bool ColorKnown;
 // ---------------------- CCL Code ----------------------
@@ -204,6 +204,12 @@ int main(int, char**)
     //ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f); // Default Background Color
     ImVec4 clear_color = ImVec4(0.14f, 0.16f, 0.24f, 1.00f);
 
+    // --------------- CCL Code ---------------
+    ColorKnown = true;
+    TargetHSVLower = BlueHSVLower;
+    TargetHSVUpper = BlueHSVUpper;
+    // --------------- CCL Code ---------------
+
     // Main loop
     bool done = false;
     while (!done)
@@ -233,26 +239,13 @@ int main(int, char**)
 
 		// --------------- Own Render Code ---------------
         //ImGui::ShowDemoWindow();
-        ColorKnown = true;
-        TargetHSVLower = YellowHSVLower;
-        TargetHSVUpper = YellowHSVUpper;
-
         constexpr int TestImgCount = 4;
         static double SumDuration = 0.0;
 
-#if TEST_MODE_ENABLED
-        std::string FileFolder = "C:\\Users\\Lenovo\\Pictures\\CCLTestImg\\";
-        for (int i = 0; i < TestImgCount; i++) {
-            std::string FilePath = std::format("{}{}.png", FileFolder, i + 1);
-            cv::Mat src = cv::imread(FilePath);
-            std::cout << std::format("Processing image: {}", FilePath) << std::endl;
-
-#else
         //cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Downloads\\output-image.png");
-        static std::string message, res; 
+        static std::string message, res, target; 
         cv::Mat src;
 		cap >> src; // 从摄像头读取一帧图像
-#endif  
         if (src.empty()) {
             std::cerr << "Error: Could not open or find the image!" << std::endl;
             return 1;
@@ -272,8 +265,8 @@ int main(int, char**)
             int x = 0;
 
             while (x < width) {
-                while (x < width && !IsPixelInRange(ImgHandle::ConvertPixelBGR2HSV(src.at<cv::Vec3b>(y, x)), TargetHSVLower, TargetHSVUpper, HSVPixelEps)) {
-                    x++;
+                while (x < width && !IsPixelInRange(ImgHandle::ConvertPixelBGR2HSV(src.at<cv::Vec3b>(y, x)), TargetHSVLower, TargetHSVUpper, HSVPixelEps, ColorKnown)) {
+                    x ++;
                 }
 
                 if (x >= width) {
@@ -282,25 +275,25 @@ int main(int, char**)
 
                 CurrentRowRun[RunIndex].StartX = x;
 
-                while (x < width && IsPixelInRange(ImgHandle::ConvertPixelBGR2HSV(src.at<cv::Vec3b>(y, x)), TargetHSVLower, TargetHSVUpper, HSVPixelEps)) {
-                    x++;
+                while (x < width && IsPixelInRange(ImgHandle::ConvertPixelBGR2HSV(src.at<cv::Vec3b>(y, x)), TargetHSVLower, TargetHSVUpper, HSVPixelEps, ColorKnown)) {
+                    x ++;
                 }
 
                 CurrentRowRun[RunIndex].EndX = x - 1;
                 CurrentRowRun[RunIndex].Label = 0; // 初始化为未标记
-                RunIndex++;
+                RunIndex ++;
             }
 
             if (y == 0) {
-                for (int i = 0; i < RunIndex; i++) {
+                for (int i = 0; i < RunIndex; i ++) {
                     Run* curr = &CurrentRowRun[i];
-                    Label++;
+                    Label ++;
                     curr->Label = FindComponent::AllocateLabel(components, Label);
                     FindComponent::UpdateComponent(components, *curr, y);
                 }
             }
             else {
-                for (int index = 0; index < RunIndex; index++) {
+                for (int index = 0; index < RunIndex; index ++) {
                     Run* curr = &CurrentRowRun[index];
                     bool AllocatedLabel = false;
 
@@ -318,12 +311,12 @@ int main(int, char**)
                     }
 
                     if (!AllocatedLabel) {
-                        Label++;
+                        Label ++;
                         curr->Label = FindComponent::AllocateLabel(components, Label);
                     }
                 }
 
-                for (int index = 0; index < RunIndex; index++) {
+                for (int index = 0; index < RunIndex; index ++) {
                     Run* curr = &CurrentRowRun[index];
                     if (curr->Label != 0) {
                         curr->Label = FindComponent::Find(components, curr->Label);
@@ -337,6 +330,9 @@ int main(int, char**)
         }
 
         // FindComponent::PrintComponents(components, Label);
+
+        if (ColorKnown) target = std::format("Target Color: [{}, {}, {}] -> [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2], TargetHSVUpper[0], TargetHSVUpper[1], TargetHSVUpper[2]);
+        else target = std::format("Target Color: [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2]);
 
         size_t maxArea = 0;
         for (int i = 1; i <= Label; i++) {
@@ -358,47 +354,56 @@ int main(int, char**)
         else {
             // std::cout << std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y) << std::endl;
             res = std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y);
-            // cv::imshow("Source Image", src);
-            // cv::imshow("Mask Image", Matmask);
-            // cv::imshow("Source Mask Image", sMask);
-#if TEST_MODE_ENABLED
-#else
-            //cv::imshow("Source Image", src);
             cv::rectangle(src, cv::Point(LeftTop.x, LeftTop.y), cv::Point(RightBottom.x, RightBottom.y), cv::Scalar(0, 0, 255), 2);
-            cv::imshow("Result Image", src);
-            cv::waitKey(2);
-#endif
         }
-#if TEST_MODE_ENABLED
-        }
+        cv::imshow("Result Image", src);
+        cv::waitKey(2);
 
-    //std::cout << std::format("Average Duration: {:.6f} seconds\n", SumDuration / static_cast<double>(TestImgCount));
-#endif
         ImGui::Begin("Test Sample Window");
 
         if (ImGui::Button("Refresh Target")) {
             ImGui::Text("Target Refreshed!");
-			cv::Vec3b centerPixel = src.at<cv::Vec3b>((LeftTop.y + RightBottom.y) / 2, (LeftTop.x + RightBottom.x) / 2);
+			cv::Vec3b centerPixelBGR = src.at<cv::Vec3b>(src.rows / 2, src.cols / 2);
+            cv::Vec3b centerPixelHSV = ImgHandle::ConvertPixelBGR2HSV(centerPixelBGR);
+            ColorKnown = true;
 
-            if (IsPixelInRange(centerPixel, BlueHSVLower, BlueHSVUpper, HSVConfirmThreshold, true)) {
-                TargetHSVLower = BlueHSVLower;
-                TargetHSVUpper = BlueHSVUpper;
-            }
-            else if (IsPixelInRange(centerPixel, YellowHSVLower, YellowHSVUpper, HSVConfirmThreshold, true)) {
+            if (IsPixelInRange(centerPixelHSV, YellowHSVLower, YellowHSVUpper, HSVConfirmThreshold, true)) {
                 TargetHSVLower = YellowHSVLower;
                 TargetHSVUpper = YellowHSVUpper;
             }
-            else if (IsPixelInRange(centerPixel, GreenHSVLower, GreenHSVUpper, HSVConfirmThreshold, true)) {
+            else if (IsPixelInRange(centerPixelHSV, GreenHSVLower, GreenHSVUpper, HSVConfirmThreshold, true)) {
                 TargetHSVLower = GreenHSVLower;
                 TargetHSVUpper = GreenHSVUpper;
             }
+            else if (IsPixelInRange(centerPixelHSV, BlueHSVLower, BlueHSVUpper, HSVConfirmThreshold, true)) {
+                TargetHSVLower = BlueHSVLower;
+                TargetHSVUpper = BlueHSVUpper;
+            }
             else {
                 ColorKnown = false;
-                TargetHSVLower = centerPixel;
+                TargetHSVLower = centerPixelHSV;
 				TargetHSVUpper = { 0, 0, 0 };
             }
-            message = std::format("Target Color: [{}, {}, {}], Color Known: {}", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2], ColorKnown);
+
+            // Just for test.
+            // cv::Vec3b centerPixelBGR = {255, 0, 0}; 
+            // TargetHSVLower = BlueHSVLower;
+            // TargetHSVUpper = BlueHSVUpper;
+            // ColorKnown = true;
+
+            // memset(components, 0, sizeof(components));
+            // memset(LastRowRun, 0, sizeof(LastRowRun));
+            // memset(CurrentRowRun, 0, sizeof(CurrentRowRun));
+
+            message = std::format("Center Pixel BGR: [{}, {}, {}]", centerPixelBGR[0], centerPixelBGR[1], centerPixelBGR[2]);
+            if (ColorKnown) {
+                message += std::format(", Refreshed Color HSV: [{}, {}, {}] -> [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2], TargetHSVUpper[0], TargetHSVUpper[1], TargetHSVUpper[2]);
+            }  
+            else{
+                message += std::format(", Refreshed Color HSV: [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2]);
+            }
         }
+        ImGui::Text(target.c_str());
         ImGui::Text(message.c_str());
         ImGui::Text(res.c_str());
         ImGui::Text(std::format("Current FPS: {}", cap.get(cv::CAP_PROP_FPS)).c_str());

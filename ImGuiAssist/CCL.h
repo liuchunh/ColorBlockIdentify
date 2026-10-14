@@ -10,14 +10,14 @@ constexpr int MaskWidth = 1280;
 constexpr int MaskHeight = 720;
 constexpr int ComponentDisabled = -1;
 
-const unsigned int HSVDistanceThreshold = 70; // HSV 距离阈值, 用于判断像素是否在指定范围内
+const unsigned int HSVDistanceThreshold = 80; // HSV 距离阈值, 用于判断像素是否在指定范围内
 
 // 当前设置的 HSV 范围是蓝色范围
-const cv::Vec3b BlueHSVLower = { 26, 43, 46 }; // HSV 范围下限
-const cv::Vec3b BlueHSVUpper = { 34, 255, 255 }; // HSV 范围上限
+const cv::Vec3b BlueHSVLower = { 100, 43, 46 }; // HSV 范围下限
+const cv::Vec3b BlueHSVUpper = { 124, 255, 255 }; // HSV 范围上限
 const cv::Vec3b PixelEps = { 8, 3, 3 }; // HSV 范围容差
 
-// 可以内置几种已知颜色的 HSV 范围, 再维护一个颜色已知/未知的标志位, 如果找不到的话就使用三维距离
+// 可以内置几种已知颜色的 HSV 范围, 再维护一个颜色已知/ 未知的标志位, 如果找不到的话就使用三维距离
 
 // 黄色
 const cv::Vec3b YellowHSVLower = { 26, 43, 46 }; // HSV 范围下限

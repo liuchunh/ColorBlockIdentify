@@ -385,9 +385,9 @@ bool IsPixelInHSVDistance(const cv::Vec3b& pixel, const cv::Vec3b& target, const
  * @attention 函数有两种形式, 是根据 ColorKnown 的值来判定的, 当 ColorKnown 为 true 时, lower, upper 是 HSV 范围的上下限, 当 ColorKnown 为 false 时, lower 是目标颜色, upper 写 0 即可, 当 PixelEps 为 0 的时候, 函数会使用默认的 HSVDistanceThreshold 来判断像素是否在指定的 HSV 距离范围内, 否则会根据 PixelEps 三维和的平方来计算阈值
  */
 bool IsPixelInRange(const cv::Vec3b& pixel, const cv::Scalar& lower, const cv::Scalar& upper, const cv::Scalar& PixelEps, bool ColorKnown) {
-    if (ColorKnown || PixelEps != cv::Scalar(0, 0, 0)) {
-        static cv::Scalar lowerBound = lower - PixelEps;
-        static cv::Scalar upperBound = upper + PixelEps;
+    if (ColorKnown) {
+        const cv::Scalar lowerBound = lower - PixelEps;
+        const cv::Scalar upperBound = upper + PixelEps;
         return (pixel[0] >= lowerBound[0] && pixel[0] <= upperBound[0] &&
             pixel[1] >= lowerBound[1] && pixel[1] <= upperBound[1] &&
             pixel[2] >= lowerBound[2] && pixel[2] <= upperBound[2]);
