@@ -282,7 +282,7 @@ int main(int, char**)
                 CurrentRowRun[RunIndex].EndX = x - 1;
                 CurrentRowRun[RunIndex].Label = 0; // 初始化为未标记
                 RunIndex ++;
-            }
+            } 
 
             if (y == 0) {
                 for (int i = 0; i < RunIndex; i ++) {
@@ -361,10 +361,12 @@ int main(int, char**)
 
         ImGui::Begin("Test Sample Window");
 
+        static cv::Vec3b centerPixelBGR, centerPixelHSV;
+
         if (ImGui::Button("Refresh Target")) {
             ImGui::Text("Target Refreshed!");
-			cv::Vec3b centerPixelBGR = src.at<cv::Vec3b>(src.rows / 2, src.cols / 2);
-            cv::Vec3b centerPixelHSV = ImgHandle::ConvertPixelBGR2HSV(centerPixelBGR);
+			centerPixelBGR = src.at<cv::Vec3b>(src.rows / 2, src.cols / 2);
+            centerPixelHSV = ImgHandle::ConvertPixelBGR2HSV(centerPixelBGR);
             ColorKnown = true;
 
             if (IsPixelInRange(centerPixelHSV, YellowHSVLower, YellowHSVUpper, HSVConfirmThreshold, true)) {
@@ -407,6 +409,14 @@ int main(int, char**)
         ImGui::Text(message.c_str());
         ImGui::Text(res.c_str());
         ImGui::Text(std::format("Current FPS: {}", cap.get(cv::CAP_PROP_FPS)).c_str());
+
+        ImGui::Text("Tracing Color: ");
+        ImGui::SameLine();
+        ImU32 color = IM_COL32(centerPixelBGR[2], centerPixelBGR[1], centerPixelBGR[0], 255);
+        const ImVec2 size = ImVec2(15, 15);
+        ImVec2 CursorPosition = ImGui::GetCursorScreenPos();
+        ImGui::GetWindowDrawList()->AddRectFilled(CursorPosition, ImVec2(CursorPosition.x + size.x, CursorPosition.y + size.y), color);
+        ImGui::Dummy(size);
         ImGui::End();
 
         // --------------- Own Render Code ---------------
