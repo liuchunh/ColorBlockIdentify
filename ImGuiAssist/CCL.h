@@ -6,29 +6,6 @@
 #include <chrono>
 #include <format>
 
-constexpr int MaskWidth = 1280;
-constexpr int MaskHeight = 720;
-constexpr int ComponentDisabled = -1;
-
-const unsigned int HSVDistanceThreshold = 80; // HSV 距离阈值, 用于判断像素是否在指定范围内
-
-// 当前设置的 HSV 范围是蓝色范围
-const cv::Vec3b BlueHSVLower = { 100, 43, 46 }; // HSV 范围下限
-const cv::Vec3b BlueHSVUpper = { 124, 255, 255 }; // HSV 范围上限
-const cv::Vec3b PixelEps = { 8, 3, 3 }; // HSV 范围容差
-
-// 可以内置几种已知颜色的 HSV 范围, 再维护一个颜色已知/ 未知的标志位, 如果找不到的话就使用三维距离
-
-// 黄色
-const cv::Vec3b YellowHSVLower = { 26, 43, 46 }; // HSV 范围下限
-const cv::Vec3b YellowHSVUpper = { 34, 255, 255 }; // HSV 范围上限
-
-// 绿色
-const cv::Vec3b GreenHSVLower = { 35, 43, 46 }; // HSV 范围下限
-const cv::Vec3b GreenHSVUpper = { 77, 255, 255 }; // HSV 范围上限
-
-const cv::Vec3b HSVConfirmThreshold = { 3, 3, 3 }; // 当确认中心颜色是否已知时, 使用此值作为 HSV 范围容差
-
 typedef struct _run {
     uint16_t StartX, EndX;
     uint16_t Label; // 所属连通块的标签, 0 表示未标记
@@ -44,6 +21,51 @@ typedef struct _component {
 typedef struct coord {
     uint16_t x, y;
 } Coordinate;
+
+struct Color {
+	cv::Vec3b BGR = { 0, 0, 0 };
+	cv::Vec3b HSVLower = { 0, 0, 0 };
+    cv::Vec3b HSVUpper = { 0, 0, 0 };
+	std::string colorName = "Unknown";
+
+	Color() = default;
+    Color(const cv::Vec3b BGR, const cv::Vec3b HSVLower, const cv::Vec3b HSVUpper, const std::string& color)
+        : BGR(BGR), HSVLower(HSVLower), HSVUpper(HSVUpper), colorName(color) {}
+
+    // 这种情况只能用于未知颜色
+    Color(const cv::Vec3b BGR, const cv::Vec3b HSV, const std::string& color)
+		: BGR(BGR), HSVLower(HSV), colorName(color) {
+        assert(color == "Unknown");
+	}
+};
+
+constexpr int MaskWidth = 1280;
+constexpr int MaskHeight = 720;
+constexpr int ComponentDisabled = -1;
+
+const unsigned int HSVDistanceThreshold = 80; // HSV 距离阈值, 用于判断像素是否在指定范围内
+
+// 当前设置的 HSV 范围是蓝色范围
+const cv::Vec3b BlueHSVLower = { 100, 43, 46 }; // HSV 范围下限
+const cv::Vec3b BlueHSVUpper = { 124, 255, 255 }; // HSV 范围上限
+
+const cv::Vec3b PixelEps = { 8, 3, 3 }; // HSV 范围容差
+
+// 可以内置几种已知颜色的 HSV 范围, 再维护一个颜色已知/ 未知的标志位, 如果找不到的话就使用三维距离
+
+// 黄色
+const cv::Vec3b YellowHSVLower = { 26, 43, 46 }; // HSV 范围下限
+const cv::Vec3b YellowHSVUpper = { 34, 255, 255 }; // HSV 范围上限
+
+// 绿色
+const cv::Vec3b GreenHSVLower = { 35, 43, 46 }; // HSV 范围下限
+const cv::Vec3b GreenHSVUpper = { 77, 255, 255 }; // HSV 范围上限
+
+const cv::Vec3b HSVConfirmThreshold = { 3, 3, 3 }; // 当确认中心颜色是否已知时, 使用此值作为 HSV 范围容差
+
+const Color Blue = { {255, 0, 0}, {100, 43, 46}, {124, 255, 255}, "Blue" };
+const Color Yellow = { {0, 255, 255}, {26, 43, 46}, {34, 255, 255}, "Yellow" };
+const Color Green = { {0, 255, 0}, {35, 43, 46}, {77, 255, 255}, "Green" };
 
 namespace ImgHandle {
     cv::Vec3b ConvertPixelBGR2HSV(const cv::Vec3b& pixel);

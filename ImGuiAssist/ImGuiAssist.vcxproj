@@ -113,16 +113,19 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level1</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>D:\ImGUI\backends;D:\ImGUI;D:\ImGUI\misc;D:\opencv\build\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>opengl32.lib;D:\opencv\build\x64\vc16\lib\opencv_world4130.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -135,7 +138,7 @@
     <ClCompile Include="..\..\..\..\ImGUI\imgui_widgets.cpp" />
     <ClCompile Include="..\..\..\..\ImGUI\misc\cpp\imgui_stdlib.cpp" />
     <ClCompile Include="CCL.cpp" />
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="CCLMainColorUpdate.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\ImGUI\backends\imgui_impl_opengl3.h" />

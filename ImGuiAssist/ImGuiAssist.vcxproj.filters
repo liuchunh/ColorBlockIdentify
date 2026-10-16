@@ -39,10 +39,10 @@
     <ClCompile Include="..\..\..\..\ImGUI\misc\cpp\imgui_stdlib.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="main.cpp">
+    <ClCompile Include="CCL.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="CCL.cpp">
+    <ClCompile Include="CCLMainColorUpdate.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
