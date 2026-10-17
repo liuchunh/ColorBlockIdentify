@@ -59,6 +59,6 @@
 *.py
 
 # Guidance
-*.md
+CCLSln.md
 CCLMainBackupForCodex.cpp
 *.disabled
