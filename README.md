@@ -23,3 +23,8 @@ Moreover, CCL functions are split in this branch with the aim of getting more cl
 - 2026.10.16
     - `CCLMainColorUpdate.cpp` Created, color structure updated.
     - Refresh Panel updated.
+- 2026.10.21
+    - `CCLMainCOlorUpdate.cpp` updated.
+    - Known bugs fixed.
+    - Create `Modify Panel`.
+    - TODO: make HSV threshold variable.

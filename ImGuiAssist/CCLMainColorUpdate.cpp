@@ -81,7 +81,7 @@ static void Hook_Renderer_SwapBuffers(ImGuiViewport* viewport, void*)
 #define IM_CLAMP(V, MN, MX)     ((V) < (MN) ? (MN) : (V) > (MX) ? (MX) : (V))
 
 // ---------------------- CCL Code ----------------------
-const cv::Scalar HSVPixelEps(8, 3, 3); // HSV 像素误差范围, 用于判断像素是否在指定范围内
+const cv::Scalar HSVPixelEps = DefaultPixelEps; // HSV 像素误差范围, 用于判断像素是否在指定范围内
 const int MinRunLength = 8; // 最小游程长度, 小于该长度的游程不分配标签, 直接忽略
 
 cv::VideoCapture cap(0); // 打开默认摄像头
@@ -236,14 +236,13 @@ int main(int, char**)
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        // --------------- Own Render Code ---------------
-        //ImGui::ShowDemoWindow();
+        // ----------------  CCL Code  ---------------
         constexpr int TestImgCount = 4;
         static double SumDuration = 0.0;
 
         //cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Downloads\\output-image.png");
         static std::string message, res, target;
-        cv::Mat src;
+        cv::Mat src, dst;
         cap >> src; // 从摄像头读取一帧图像
         if (src.empty()) {
             std::cerr << "Error: Could not open or find the image!" << std::endl;
@@ -334,7 +333,7 @@ int main(int, char**)
 		const cv::Vec3b TargetHSVUpper = TargetColor.HSVUpper;
 
         if (ColorKnown) target = std::format("Target Color HSV Range: [{}, {}, {}] -> [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2], TargetHSVUpper[0], TargetHSVUpper[1], TargetHSVUpper[2]);
-        else target = std::format("Target Color: [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2]);
+        else target = std::format("Target Color HSV Range: [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2]);
 
         size_t maxArea = 0;
         for (int i = 1; i <= Label; i++) {
@@ -348,6 +347,8 @@ int main(int, char**)
             }
         }
         // std::cout << std::format("Current FPS: {}", cap.get(cv::CAP_PROP_FPS)) << std::endl;
+        dst = src.clone();
+
         if (LeftTop.x == 0 && LeftTop.y == 0 && RightBottom.x == 0 && RightBottom.y == 0) {
             // 没有找到任何连通块
             // std::cout << "No connected component found!" << std::endl;
@@ -356,26 +357,29 @@ int main(int, char**)
         else {
             // std::cout << std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y) << std::endl;
             res = std::format("Final Component: Area: {}, Bounding Box: [({}, {}) -> ({}, {})]", maxArea, LeftTop.x, LeftTop.y, RightBottom.x, RightBottom.y);
-            cv::rectangle(src, cv::Point(LeftTop.x, LeftTop.y), cv::Point(RightBottom.x, RightBottom.y), cv::Scalar(0, 0, 255), 2);
+            cv::rectangle(dst, cv::Point(LeftTop.x, LeftTop.y), cv::Point(RightBottom.x, RightBottom.y), cv::Scalar(0, 0, 255), 2);
         }
-        cv::imshow("Result Image", src);
+        cv::imshow("Result Image", dst);
         cv::waitKey(2);
+        // ----------------  CCL Code  ---------------
 
-        ImGui::Begin("Test Sample Window");
+        // ---------------- Panel Code ----------------
+        ImGui::Begin("Debug Panel");
 
         static cv::Vec3b centerPixelBGR, centerPixelHSV;
 
         if (ImGui::Button("Refresh Target")) {
+            ImGui::SameLine();
             ImGui::Text("Target Refreshed!");
             centerPixelBGR = src.at<cv::Vec3b>(src.rows / 2, src.cols / 2);
             centerPixelHSV = ImgHandle::ConvertPixelBGR2HSV(centerPixelBGR);
             ColorKnown = true;
 
-            if (IsPixelInRange(centerPixelHSV, YellowHSVLower, YellowHSVUpper, HSVConfirmThreshold, true)) {
-				TargetColor = Yellow;
-            }
-            else if (IsPixelInRange(centerPixelHSV, GreenHSVLower, GreenHSVUpper, HSVConfirmThreshold, true)) {
+            if (IsPixelInRange(centerPixelHSV, GreenHSVLower, GreenHSVUpper, HSVConfirmThreshold, true)) {
 				TargetColor = Green;
+            }
+            else if (IsPixelInRange(centerPixelHSV, YellowHSVLower, YellowHSVUpper, HSVConfirmThreshold, true)) {
+				TargetColor = Yellow;
             }
             else if (IsPixelInRange(centerPixelHSV, BlueHSVLower, BlueHSVUpper, HSVConfirmThreshold, true)) {
 				TargetColor = Blue;
@@ -426,8 +430,98 @@ int main(int, char**)
         }
     
         ImGui::End();
+        ImGui::Begin("Modify Panel");
 
-        // --------------- Own Render Code ---------------
+        static int R, G, B;
+        static int ConfirmR, ConfirmG, ConfirmB;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_None & ~ImGuiSliderFlags_WrapAround;
+        static std::string ModifyMsg;
+        static bool btnPreviewPushed = false;
+        static bool btnConfirmPushed = false;
+
+        const float SliderLength = 400;
+        ImGui::SetNextItemWidth(SliderLength);
+        ImGui::SliderInt("R Channel", &R, 0, 255, "%d", flags);
+        ImGui::SetNextItemWidth(SliderLength);
+        ImGui::SliderInt("G Channel", &G, 0, 255, "%d", flags);
+        ImGui::SetNextItemWidth(SliderLength);
+        ImGui::SliderInt("B Channel", &B, 0, 255, "%d", flags);
+
+        if (ImGui::Button("Preview Color")) {
+            btnPreviewPushed = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Confirm Color")) {
+            btnConfirmPushed = true;
+        }
+
+        if (btnPreviewPushed){
+            btnPreviewPushed = false;
+            ModifyMsg = std::format("Selected RGB Value: [{}, {}, {}]", R, G, B);
+            ConfirmB = B, ConfirmG = G, ConfirmR = R;
+        }
+
+        ImGui::Text("%s", ModifyMsg.c_str());
+        if (!ModifyMsg.empty()) {
+            ImGui::Text("Color Preview: ");
+            ImGui::SameLine();
+            ImU32 Color = IM_COL32(ConfirmR, ConfirmG, ConfirmB, 255);
+            const ImVec2 Size = ImVec2(20, 20);
+            ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetCursorScreenPos(), ImVec2(ImGui::GetCursorScreenPos().x + Size.x, ImGui::GetCursorScreenPos().y + Size.y), Color);
+            ImGui::Dummy(Size);
+        }
+
+        if (btnConfirmPushed) {
+            btnConfirmPushed = false;
+            ConfirmB = B, ConfirmG = G, ConfirmR = R;
+            const cv::Vec3b ConfirmBGR = cv::Vec3b(ConfirmB, ConfirmG, ConfirmR);
+            const cv::Vec3b ConfirmHSV = ImgHandle::ConvertPixelBGR2HSV(ConfirmBGR);
+            TargetColor.BGR = ConfirmBGR;
+            TargetColor.HSVLower = ConfirmHSV;
+
+            ColorKnown = true;
+
+            // 这里的判定范围应从小到大, 不然会出现颜色被覆盖的情况, 例如绿色和黄色的范围有重叠, 如果先判定绿色, 那么黄色就会被判定为绿色
+            if (IsPixelInRange(ConfirmHSV, GreenHSVLower, GreenHSVUpper, HSVConfirmThreshold, true)) {
+				TargetColor = Green;
+            }
+            else if (IsPixelInRange(ConfirmHSV, YellowHSVLower, YellowHSVUpper, HSVConfirmThreshold, true)) {
+				TargetColor = Yellow;
+            }
+            else if (IsPixelInRange(ConfirmHSV, BlueHSVLower, BlueHSVUpper, HSVConfirmThreshold, true)) {
+				TargetColor = Blue;
+            }
+            else {
+                ColorKnown = false;
+				TargetColor.colorName = "Unknown";
+                TargetColor.HSVUpper = cv::Vec3b(0, 0, 0);
+            }
+            ModifyMsg = std::format("Confirmed Color: BGR: [{}, {}, {}], HSV: [{}, {}, {}]", ConfirmBGR[0], ConfirmBGR[1], ConfirmBGR[2], ConfirmHSV[0], ConfirmHSV[1], ConfirmHSV[2]);
+        }
+
+        ImGui::Text("");
+        ImGui::Text("");
+
+        ImGui::Text("Preview Settings below, please adjust as needed.");
+        
+        if (ImGui::Button("Yellow"))        {
+            TargetColor = Yellow;
+            ColorKnown = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Green"))         {
+            TargetColor = Green;
+            ColorKnown = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Blue"))          {
+            TargetColor = Blue;
+            ColorKnown = true;
+        }
+
+        ImGui::End();
+
+        // ---------------- Panel Code ----------------
 
         //// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         //if (show_demo_window)

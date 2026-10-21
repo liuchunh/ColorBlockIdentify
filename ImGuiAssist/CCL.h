@@ -43,13 +43,19 @@ constexpr int MaskWidth = 1280;
 constexpr int MaskHeight = 720;
 constexpr int ComponentDisabled = -1;
 
-const unsigned int HSVDistanceThreshold = 80; // HSV 距离阈值, 用于判断像素是否在指定范围内
+// HSV 距离阈值, 用于判断像素是否在指定范围内
+// 这个值必须要比 PixelEps 大, 因为 PixelEps 已知颜色了, 有明确的值范围
+// 而 HSVDistanceThreshold 是未知颜色的, 只能通过三维距离来判断, 所以需要更大的容差
+const unsigned int HSVDistanceThreshold = 300; 
 
 // 当前设置的 HSV 范围是蓝色范围
 const cv::Vec3b BlueHSVLower = { 100, 43, 46 }; // HSV 范围下限
 const cv::Vec3b BlueHSVUpper = { 124, 255, 255 }; // HSV 范围上限
 
-const cv::Vec3b PixelEps = { 8, 3, 3 }; // HSV 范围容差
+const cv::Vec3b DefaultPixelEps = { 4, 12, 12 }; // HSV 范围容差
+// 针对 HSV 色彩空间
+// Hue 允许的误差不能太大, 而 Saturation 和 Value 可以适当放宽, 因为在不同光照条件下, 颜色的饱和度和亮度会有较大变化
+const cv::Vec3b PixelEps = DefaultPixelEps; // HSV 范围容差
 
 // 可以内置几种已知颜色的 HSV 范围, 再维护一个颜色已知/ 未知的标志位, 如果找不到的话就使用三维距离
 
@@ -61,7 +67,7 @@ const cv::Vec3b YellowHSVUpper = { 34, 255, 255 }; // HSV 范围上限
 const cv::Vec3b GreenHSVLower = { 35, 43, 46 }; // HSV 范围下限
 const cv::Vec3b GreenHSVUpper = { 77, 255, 255 }; // HSV 范围上限
 
-const cv::Vec3b HSVConfirmThreshold = { 3, 3, 3 }; // 当确认中心颜色是否已知时, 使用此值作为 HSV 范围容差
+const cv::Vec3b HSVConfirmThreshold = DefaultPixelEps; // 当确认中心颜色是否已知时, 使用此值作为 HSV 范围容差
 
 const Color Blue = { {255, 0, 0}, {100, 43, 46}, {124, 255, 255}, "Blue" };
 const Color Yellow = { {0, 255, 255}, {26, 43, 46}, {34, 255, 255}, "Yellow" };
