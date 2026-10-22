@@ -71,5 +71,8 @@
     <ClInclude Include="CCL.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="Theme.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

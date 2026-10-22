@@ -22,6 +22,7 @@
 #include <stdio.h>
 
 #include "CCL.h"
+#include "Theme.h"
 
 // Data stored per platform window
 struct WGL_WindowData { HDC hDC; };
@@ -208,6 +209,8 @@ int main(int, char**)
     ColorKnown = true;
 	TargetColor = Blue;
     // --------------- CCL Code ---------------
+
+    glass::ApplyTheme();
 
     // Main loop
     bool done = false;

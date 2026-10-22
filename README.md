@@ -28,3 +28,5 @@ Moreover, CCL functions are split in this branch with the aim of getting more cl
     - Known bugs fixed.
     - Create `Modify Panel`.
     - TODO: make HSV threshold variable.
+- 2026.10.22
+    - `Theme.h` Created for beautifying panel.
