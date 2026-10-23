@@ -17,6 +17,7 @@ Moreover, CCL functions are split in this branch with the aim of getting more cl
     - main.cpp --- combination result of CCL, OpenCV and ImGui
     - CCLMainColorUpdate.cpp --- Based on `main.cpp`, its color info got integrated into a `C++ style` structure
     - CCLMainVariableThreshold.cpp --- Based on `CCLMainColorUpdate.cpp`, this file modifies threshold to a variable, which allows us to debug more conveniently.
+    - CCLMainMultithreading.cpp --- Based on `CCLMainVariableThreshold.cpp`. But use multi-threading. I am noob. So `GPT 6.1 sol` generate this.
     - imgui.ini --- ImGui Runtime Config (Just Windows Position etc.)
     - Theme.h --- Just beautifying the panel.
     - ...... --- Remaining files are created by visual studio, i don't know what they are
@@ -34,3 +35,4 @@ Moreover, CCL functions are split in this branch with the aim of getting more cl
     - `Theme.h` Created for beautifying panel.
 - 2026.10.23
     - `CCLMainVariableThreshold.cpp` Created, turning HSV Range variables, with the aim of making debug easier.
+    - `CCLMainMultithreading.cpp` Created. It split `Dear ImGui thread` and `OpenCV Video Capture thread` to improve fluency.

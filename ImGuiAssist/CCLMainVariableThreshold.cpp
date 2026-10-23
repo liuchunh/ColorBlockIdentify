@@ -110,7 +110,7 @@ int main(int, char**)
     // Create application window
     WNDCLASSEXW wc = { sizeof(wc), CS_OWNDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
     ::RegisterClassExW(&wc);
-    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Dear ImGui Win32+OpenGL3 Example", WS_OVERLAPPEDWINDOW, 100, 100, (int)(1280 * main_scale), (int)(800 * main_scale), nullptr, nullptr, wc.hInstance, nullptr);
+    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Dear ImGui Win32 + OpenGL3 Debug Panel", WS_OVERLAPPEDWINDOW, 100, 100, (int)(1280 * main_scale), (int)(800 * main_scale), nullptr, nullptr, wc.hInstance, nullptr);
 
     // Initialize OpenGL
     if (!CreateDeviceWGL(hwnd, &g_MainWindow))
@@ -366,199 +366,201 @@ int main(int, char**)
         cv::waitKey(2);
         // ----------------  CCL Code  ---------------
 
-        // ---------------- Panel Code ----------------
-
         // ------------ Debug Panel Code ----------------
-        ImGui::Begin("Debug Panel");
+        ImGuiTabBarFlags TabBarFlags = ImGuiTabBarFlags_None;
+        if (ImGui::BeginTabBar("MyTabBar", TabBarFlags)){
+            if (ImGui::BeginTabItem("Debug Info Panel")){
+                static cv::Vec3b centerPixelBGR, centerPixelHSV;
 
-        static cv::Vec3b centerPixelBGR, centerPixelHSV;
-
-        if (ImGui::Button("Refresh Target")) {
-            ImGui::SameLine();
-            ImGui::Text("Target Refreshed!");
-            centerPixelBGR = src.at<cv::Vec3b>(src.rows / 2, src.cols / 2);
-            centerPixelHSV = ImgHandle::ConvertPixelBGR2HSV(centerPixelBGR);
-            ColorKnown = true;
-
-            if (IsPixelInRange(centerPixelHSV, GreenHSVLower, GreenHSVUpper, HSVConfirmThreshold, true)) {
-				TargetColor = Green;
-            }
-            else if (IsPixelInRange(centerPixelHSV, YellowHSVLower, YellowHSVUpper, HSVConfirmThreshold, true)) {
-				TargetColor = Yellow;
-            }
-            else if (IsPixelInRange(centerPixelHSV, BlueHSVLower, BlueHSVUpper, HSVConfirmThreshold, true)) {
-				TargetColor = Blue;
-            }
-            else {
-                ColorKnown = false;
-				TargetColor.BGR = centerPixelBGR;
-				TargetColor.HSVLower = centerPixelHSV;
-				TargetColor.colorName = "Unknown";
-                TargetColor.HSVUpper = cv::Vec3b(0, 0, 0);
-            }
-
-            // Just for test.
-            // cv::Vec3b centerPixelBGR = {255, 0, 0}; 
-            // TargetHSVLower = BlueHSVLower;
-            // TargetHSVUpper = BlueHSVUpper;
-            // ColorKnown = true;
-
-            // memset(components, 0, sizeof(components));
-            // memset(LastRowRun, 0, sizeof(LastRowRun));
-            // memset(CurrentRowRun, 0, sizeof(CurrentRowRun));
-
-            message = std::format("Center Pixel BGR: [{}, {}, {}]", centerPixelBGR[0], centerPixelBGR[1], centerPixelBGR[2]);
-            if (ColorKnown) {
-                message += std::format(", Refreshed Color HSV: [{}, {}, {}] -> [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2], TargetHSVUpper[0], TargetHSVUpper[1], TargetHSVUpper[2]);
-            }
-            else {
-                message += std::format(", Refreshed Color HSV: [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2]);
-            }
-        }
-        ImGui::Text(target.c_str());
-        ImGui::Text(message.c_str());
-        ImGui::Text(res.c_str());
-        ImGui::Text(std::format("Current FPS: {}", cap.get(cv::CAP_PROP_FPS)).c_str());
-
-        ImGui::Text("Tracing Color: ");
-        ImGui::SameLine();
-        ImU32 color = IM_COL32(TargetColor.BGR[2], TargetColor.BGR[1], TargetColor.BGR[0], 255);
-        const ImVec2 size = ImVec2(15, 15);
-        ImVec2 CursorPosition = ImGui::GetCursorScreenPos();
-        ImGui::GetWindowDrawList()->AddRectFilled(CursorPosition, ImVec2(CursorPosition.x + size.x, CursorPosition.y + size.y), color);
-        ImGui::Dummy(size);
-        if (ColorKnown) {
-            ImGui::Text(std::format("Tracing Color: {}", TargetColor.colorName).c_str());
-        }
-        else {
-			ImGui::Text("Tracing Unknown Color Type.");
-        }
-        ImGui::Text(std::format("HSV Pixel Threshold: [{}, {}, {}]", HSVPixelEps[0], HSVPixelEps[1], HSVPixelEps[2]).c_str());
-
-        ImGui::End();
-        // ------------ Debug Panel Code ----------------
-
-        // ------------ Modify Panel Code ----------------
-        ImGui::Begin("Modify Panel");
-
-        ImGui::Text("Modify Target Color RGB: ");
-        static int R, G, B;
-        static int ConfirmR, ConfirmG, ConfirmB;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_None & ~ImGuiSliderFlags_WrapAround;
-        static std::string ModifyMsg;
-        static bool btnPreviewPushed = false;
-        static bool btnConfirmPushed = false;
-
-        const float SliderLength = 400;
-        ImGui::SetNextItemWidth(SliderLength);
-        ImGui::SliderInt("R Channel", &R, 0, 255, "%d", flags);
-        ImGui::SetNextItemWidth(SliderLength);
-        ImGui::SliderInt("G Channel", &G, 0, 255, "%d", flags);
-        ImGui::SetNextItemWidth(SliderLength);
-        ImGui::SliderInt("B Channel", &B, 0, 255, "%d", flags);
-
-        if (ImGui::Button("Preview Color")) {
-            btnPreviewPushed = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Confirm Color")) {
-            btnConfirmPushed = true;
-        }
-
-        if (btnPreviewPushed){
-            btnPreviewPushed = false;
-            ModifyMsg = std::format("Selected RGB Value: [{}, {}, {}]", R, G, B);
-            ConfirmB = B, ConfirmG = G, ConfirmR = R;
-        }
-
-        ImGui::Text("%s", ModifyMsg.c_str());
-        if (!ModifyMsg.empty()) {
-            ImGui::Text("Color Preview: ");
-            ImGui::SameLine();
-            ImU32 Color = IM_COL32(ConfirmR, ConfirmG, ConfirmB, 255);
-            const ImVec2 Size = ImVec2(20, 20);
-            ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetCursorScreenPos(), ImVec2(ImGui::GetCursorScreenPos().x + Size.x, ImGui::GetCursorScreenPos().y + Size.y), Color);
-            ImGui::Dummy(Size);
-        }
-
-        if (btnConfirmPushed) {
-            btnConfirmPushed = false;
-            ConfirmB = B, ConfirmG = G, ConfirmR = R;
-            const cv::Vec3b ConfirmBGR = cv::Vec3b(ConfirmB, ConfirmG, ConfirmR);
-            const cv::Vec3b ConfirmHSV = ImgHandle::ConvertPixelBGR2HSV(ConfirmBGR);
-            TargetColor.BGR = ConfirmBGR;
-            TargetColor.HSVLower = ConfirmHSV;
-
-            ColorKnown = true;
-
-            // 这里的判定范围应从小到大, 不然会出现颜色被覆盖的情况, 例如绿色和黄色的范围有重叠, 如果先判定绿色, 那么黄色就会被判定为绿色
-            if (IsPixelInRange(ConfirmHSV, GreenHSVLower, GreenHSVUpper, HSVConfirmThreshold, true)) {
-				TargetColor = Green;
-            }
-            else if (IsPixelInRange(ConfirmHSV, YellowHSVLower, YellowHSVUpper, HSVConfirmThreshold, true)) {
-				TargetColor = Yellow;
-            }
-            else if (IsPixelInRange(ConfirmHSV, BlueHSVLower, BlueHSVUpper, HSVConfirmThreshold, true)) {
-				TargetColor = Blue;
-            }
-            else {
-                ColorKnown = false;
-				TargetColor.colorName = "Unknown";
-                TargetColor.HSVUpper = cv::Vec3b(0, 0, 0);
-            }
-            ModifyMsg = std::format("Confirmed Color: BGR: [{}, {}, {}], HSV: [{}, {}, {}]", ConfirmBGR[0], ConfirmBGR[1], ConfirmBGR[2], ConfirmHSV[0], ConfirmHSV[1], ConfirmHSV[2]);
-        }
-
-        ImGui::Text("Preview Settings below, please adjust as needed.");
+                if (ImGui::Button("Refresh Target")) {
+                    ImGui::SameLine();
+                    ImGui::Text("Target Refreshed!");
+                    centerPixelBGR = src.at<cv::Vec3b>(src.rows / 2, src.cols / 2);
+                    centerPixelHSV = ImgHandle::ConvertPixelBGR2HSV(centerPixelBGR);
+                    ColorKnown = true;
         
-        if (ImGui::Button("Yellow")){
-            TargetColor = Yellow;
-            ColorKnown = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Green")){
-            TargetColor = Green;
-            ColorKnown = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Blue")){
-            TargetColor = Blue;
-            ColorKnown = true;
-        }
+                    if (IsPixelInRange(centerPixelHSV, GreenHSVLower, GreenHSVUpper, HSVConfirmThreshold, true)) {
+                        TargetColor = Green;
+                    }
+                    else if (IsPixelInRange(centerPixelHSV, YellowHSVLower, YellowHSVUpper, HSVConfirmThreshold, true)) {
+                        TargetColor = Yellow;
+                    }
+                    else if (IsPixelInRange(centerPixelHSV, BlueHSVLower, BlueHSVUpper, HSVConfirmThreshold, true)) {
+                        TargetColor = Blue;
+                    }
+                    else {
+                        ColorKnown = false;
+                        TargetColor.BGR = centerPixelBGR;
+                        TargetColor.HSVLower = centerPixelHSV;
+                        TargetColor.colorName = "Unknown";
+                        TargetColor.HSVUpper = cv::Vec3b(0, 0, 0);
+                    }
+        
+                    // Just for test.
+                    // cv::Vec3b centerPixelBGR = {255, 0, 0}; 
+                    // TargetHSVLower = BlueHSVLower;
+                    // TargetHSVUpper = BlueHSVUpper;
+                    // ColorKnown = true;
+        
+                    // memset(components, 0, sizeof(components));
+                    // memset(LastRowRun, 0, sizeof(LastRowRun));
+                    // memset(CurrentRowRun, 0, sizeof(CurrentRowRun));
+        
+                    message = std::format("Center Pixel BGR: [{}, {}, {}]", centerPixelBGR[0], centerPixelBGR[1], centerPixelBGR[2]);
+                    if (ColorKnown) {
+                        message += std::format(", Refreshed Color HSV: [{}, {}, {}] -> [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2], TargetHSVUpper[0], TargetHSVUpper[1], TargetHSVUpper[2]);
+                    }
+                    else {
+                        message += std::format(", Refreshed Color HSV: [{}, {}, {}]", TargetHSVLower[0], TargetHSVLower[1], TargetHSVLower[2]);
+                    }
+                }
+                ImGui::Text(target.c_str());
+                ImGui::Text(message.c_str());
+                ImGui::Text(res.c_str());
+                ImGui::Text(std::format("Current FPS: {}", cap.get(cv::CAP_PROP_FPS)).c_str());
+        
+                ImGui::Text("Tracing Color: ");
+                ImGui::SameLine();
+                ImU32 color = IM_COL32(TargetColor.BGR[2], TargetColor.BGR[1], TargetColor.BGR[0], 255);
+                const ImVec2 size = ImVec2(15, 15);
+                ImVec2 CursorPosition = ImGui::GetCursorScreenPos();
+                ImGui::GetWindowDrawList()->AddRectFilled(CursorPosition, ImVec2(CursorPosition.x + size.x, CursorPosition.y + size.y), color);
+                ImGui::Dummy(size);
+                if (ColorKnown) {
+                    ImGui::Text(std::format("Tracing Color: {}", TargetColor.colorName).c_str());
+                }
+                else {
+                    ImGui::Text("Tracing Unknown Color Type.");
+                }
+                ImGui::Text(std::format("HSV Pixel Threshold: [{}, {}, {}]", HSVPixelEps[0], HSVPixelEps[1], HSVPixelEps[2]).c_str());
 
-        static int ChannelH = HSVPixelEps[0];
-        static int ChannelS = HSVPixelEps[1];
-        static int ChannelV = HSVPixelEps[2];
-        static std::string EpsMsg;
+                ImGui::EndTabItem();
+            }
+            // ------------ Debug Panel Code ----------------
 
-        ImGui::Text("");
-        ImGui::Text("Modify Target HSV Pixel Threshold: ");
-        ImGui::SetNextItemWidth(SliderLength);
-        ImGui::SliderInt("Hue Channel Threshold", &ChannelH, 0, 255, "%d", flags);
-        ImGui::SetNextItemWidth(SliderLength);
-        ImGui::SliderInt("Saturation Channel Threshold", &ChannelS, 0, 255, "%d", flags);
-        ImGui::SetNextItemWidth(SliderLength);
-        ImGui::SliderInt("Value Channel Threshold", &ChannelV, 0, 255, "%d", flags);
+            // ------------ Modify Panel Code ----------------
+            if (ImGui::BeginTabItem("Modify Parameters Panel")){
+                ImGui::Text("Modify Target Color RGB: ");
+                static int R, G, B;
+                static int ConfirmR, ConfirmG, ConfirmB;
+                static ImGuiSliderFlags flags = ImGuiSliderFlags_None & ~ImGuiSliderFlags_WrapAround;
+                static std::string ModifyMsg;
+                static bool btnPreviewPushed = false;
+                static bool btnConfirmPushed = false;
+        
+                const float SliderLength = 400;
+                ImGui::SetNextItemWidth(SliderLength);
+                ImGui::SliderInt("R Channel", &R, 0, 255, "%d", flags);
+                ImGui::SetNextItemWidth(SliderLength);
+                ImGui::SliderInt("G Channel", &G, 0, 255, "%d", flags);
+                ImGui::SetNextItemWidth(SliderLength);
+                ImGui::SliderInt("B Channel", &B, 0, 255, "%d", flags);
+        
+                if (ImGui::Button("Preview Color")) {
+                    btnPreviewPushed = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Confirm Color")) {
+                    btnConfirmPushed = true;
+                }
+        
+                if (btnPreviewPushed){
+                    btnPreviewPushed = false;
+                    ModifyMsg = std::format("Selected RGB Value: [{}, {}, {}]", R, G, B);
+                    ConfirmB = B, ConfirmG = G, ConfirmR = R;
+                }
+        
+                ImGui::Text("%s", ModifyMsg.c_str());
+                if (!ModifyMsg.empty()) {
+                    ImGui::Text("Color Preview: ");
+                    ImGui::SameLine();
+                    ImU32 Color = IM_COL32(ConfirmR, ConfirmG, ConfirmB, 255);
+                    const ImVec2 Size = ImVec2(20, 20);
+                    ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetCursorScreenPos(), ImVec2(ImGui::GetCursorScreenPos().x + Size.x, ImGui::GetCursorScreenPos().y + Size.y), Color);
+                    ImGui::Dummy(Size);
+                }
+        
+                if (btnConfirmPushed) {
+                    btnConfirmPushed = false;
+                    ConfirmB = B, ConfirmG = G, ConfirmR = R;
+                    const cv::Vec3b ConfirmBGR = cv::Vec3b(ConfirmB, ConfirmG, ConfirmR);
+                    const cv::Vec3b ConfirmHSV = ImgHandle::ConvertPixelBGR2HSV(ConfirmBGR);
+                    TargetColor.BGR = ConfirmBGR;
+                    TargetColor.HSVLower = ConfirmHSV;
+        
+                    ColorKnown = true;
+        
+                    // 这里的判定范围应从小到大, 不然会出现颜色被覆盖的情况, 例如绿色和黄色的范围有重叠, 如果先判定绿色, 那么黄色就会被判定为绿色
+                    if (IsPixelInRange(ConfirmHSV, GreenHSVLower, GreenHSVUpper, HSVConfirmThreshold, true)) {
+                        TargetColor = Green;
+                    }
+                    else if (IsPixelInRange(ConfirmHSV, YellowHSVLower, YellowHSVUpper, HSVConfirmThreshold, true)) {
+                        TargetColor = Yellow;
+                    }
+                    else if (IsPixelInRange(ConfirmHSV, BlueHSVLower, BlueHSVUpper, HSVConfirmThreshold, true)) {
+                        TargetColor = Blue;
+                    }
+                    else {
+                        ColorKnown = false;
+                        TargetColor.colorName = "Unknown";
+                        TargetColor.HSVUpper = cv::Vec3b(0, 0, 0);
+                    }
+                    ModifyMsg = std::format("Confirmed Color: BGR: [{}, {}, {}], HSV: [{}, {}, {}]", ConfirmBGR[0], ConfirmBGR[1], ConfirmBGR[2], ConfirmHSV[0], ConfirmHSV[1], ConfirmHSV[2]);
+                }
+        
+                ImGui::Text("Preview Settings below, please adjust as needed.");
+                
+                if (ImGui::Button("Yellow")){
+                    TargetColor = Yellow;
+                    ColorKnown = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Green")){
+                    TargetColor = Green;
+                    ColorKnown = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Blue")){
+                    TargetColor = Blue;
+                    ColorKnown = true;
+                }
+        
+                static int ChannelH = HSVPixelEps[0];
+                static int ChannelS = HSVPixelEps[1];
+                static int ChannelV = HSVPixelEps[2];
+                static std::string EpsMsg;
+        
+                ImGui::Text("");
+                ImGui::Text("Modify Target HSV Pixel Threshold: ");
+                ImGui::SetNextItemWidth(SliderLength);
+                ImGui::SliderInt("Hue Channel Threshold", &ChannelH, 0, 255, "%d", flags);
+                ImGui::SetNextItemWidth(SliderLength);
+                ImGui::SliderInt("Saturation Channel Threshold", &ChannelS, 0, 255, "%d", flags);
+                ImGui::SetNextItemWidth(SliderLength);
+                ImGui::SliderInt("Value Channel Threshold", &ChannelV, 0, 255, "%d", flags);
+        
+                if (ImGui::Button("Set to Default")){
+                    HSVPixelEps[0] = DefaultPixelEps[0];
+                    HSVPixelEps[1] = DefaultPixelEps[1];
+                    HSVPixelEps[2] = DefaultPixelEps[2];
+                    
+                    ChannelH = HSVPixelEps[0];
+                    ChannelS = HSVPixelEps[1];
+                    ChannelV = HSVPixelEps[2];
+                }
+        
+                // 修改后更新 HSVPixelEps
+                // 如果不是全部相等, 则更新 HSVPixelEps, 否则不更新
+                if ( !(cv::Scalar(ChannelH, ChannelS, ChannelV) == HSVPixelEps) ) {
+                    HSVPixelEps = cv::Scalar(ChannelH, ChannelS, ChannelV);
+                    EpsMsg = std::format("Updated HSV Pixel Threshold: [{}, {}, {}]", HSVPixelEps[0], HSVPixelEps[1], HSVPixelEps[2]);
+                }
+                ImGui::Text(EpsMsg.c_str());
+                ImGui::EndTabItem();
+            }
 
-        if (ImGui::Button("Set to Default")){
-            HSVPixelEps[0] = DefaultPixelEps[0];
-            HSVPixelEps[1] = DefaultPixelEps[1];
-            HSVPixelEps[2] = DefaultPixelEps[2];
-            
-            ChannelH = HSVPixelEps[0];
-            ChannelS = HSVPixelEps[1];
-            ChannelV = HSVPixelEps[2];
+            ImGui::EndTabBar();
         }
-
-        // 修改后更新 HSVPixelEps
-        // 如果不是全部相等, 则更新 HSVPixelEps, 否则不更新
-        if ( !(cv::Scalar(ChannelH, ChannelS, ChannelV) == HSVPixelEps) ) {
-            HSVPixelEps = cv::Scalar(ChannelH, ChannelS, ChannelV);
-            EpsMsg = std::format("Updated HSV Pixel Threshold: [{}, {}, {}]", HSVPixelEps[0], HSVPixelEps[1], HSVPixelEps[2]);
-        }
-        ImGui::Text(EpsMsg.c_str());
-
-        ImGui::End();
 
         // ------------ Modify Panel Code ----------------
 

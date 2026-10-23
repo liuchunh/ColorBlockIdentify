@@ -18,9 +18,11 @@ typedef struct _component {
     uint16_t minX, minY, maxX, maxY; // 该连通块的边界框 -> 外接矩形
 } Component;
 
-typedef struct coord {
+struct Coordinate {
     uint16_t x, y;
-} Coordinate;
+
+    Coordinate() : x(0), y(0) {}
+};
 
 struct Color {
 	cv::Vec3b BGR = { 0, 0, 0 };
