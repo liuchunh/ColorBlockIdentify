@@ -42,7 +42,7 @@
     <ClCompile Include="CCL.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="CCLMainColorUpdate.cpp">
+    <ClCompile Include="CCLMainVariableThreshold.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

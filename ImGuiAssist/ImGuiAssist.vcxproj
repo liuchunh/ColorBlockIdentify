@@ -138,7 +138,7 @@
     <ClCompile Include="..\..\..\..\ImGUI\imgui_widgets.cpp" />
     <ClCompile Include="..\..\..\..\ImGUI\misc\cpp\imgui_stdlib.cpp" />
     <ClCompile Include="CCL.cpp" />
-    <ClCompile Include="CCLMainColorUpdate.cpp" />
+    <ClCompile Include="CCLMainVariableThreshold.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\ImGUI\backends\imgui_impl_opengl3.h" />
