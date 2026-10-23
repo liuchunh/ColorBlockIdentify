@@ -589,12 +589,40 @@ int main(int, char**)
                 static bool btnConfirmPushed = false;
         
                 const float SliderLength = 400;
+                const int step = 1;
+
                 ImGui::SetNextItemWidth(SliderLength);
                 ImGui::SliderInt("R Channel", &R, 0, 255, "%d", flags);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY);
+                    float wheelY = ImGui::GetIO().MouseWheel;
+                    if (wheelY != 0) {
+                        int delta = (wheelY > 0) ? step : -step;
+                        R = IM_CLAMP(R + delta, 0, 255);
+                    }
+                }
+
                 ImGui::SetNextItemWidth(SliderLength);
                 ImGui::SliderInt("G Channel", &G, 0, 255, "%d", flags);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY);
+                    float wheelY = ImGui::GetIO().MouseWheel;
+                    if (wheelY != 0) {
+                        int delta = (wheelY > 0) ? step : -step;
+                        G = IM_CLAMP(G + delta, 0, 255);
+                    }
+				}
+
                 ImGui::SetNextItemWidth(SliderLength);
                 ImGui::SliderInt("B Channel", &B, 0, 255, "%d", flags);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY);
+                    float wheelY = ImGui::GetIO().MouseWheel;
+                    if (wheelY != 0) {
+                        int delta = (wheelY > 0) ? step : -step;
+                        B = IM_CLAMP(B + delta, 0, 255);
+                    }
+				}
         
                 if (ImGui::Button("Preview Color")) {
                     btnPreviewPushed = true;
@@ -670,15 +698,41 @@ int main(int, char**)
                 static int ChannelV = HSVPixelEps[2];
                 static std::string EpsMsg;
         
+
                 ImGui::Text("");
                 ImGui::Text("Modify Target HSV Pixel Threshold: ");
                 ImGui::SetNextItemWidth(SliderLength);
                 ImGui::SliderInt("Hue Channel Threshold", &ChannelH, 0, 255, "%d", flags);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY);
+					float wheelY = ImGui::GetIO().MouseWheel;
+                    if (wheelY != 0) {
+						int delta = (wheelY > 0) ? step : -step;
+						ChannelH = IM_CLAMP(ChannelH + delta, 0, 255);
+                    }
+                }
+
                 ImGui::SetNextItemWidth(SliderLength);
                 ImGui::SliderInt("Saturation Channel Threshold", &ChannelS, 0, 255, "%d", flags);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY);
+                    float wheelY = ImGui::GetIO().MouseWheel;
+                    if (wheelY != 0) {
+                        int delta = (wheelY > 0) ? step : -step;
+                        ChannelS = IM_CLAMP(ChannelS + delta, 0, 255);
+                    }
+                }
                 ImGui::SetNextItemWidth(SliderLength);
                 ImGui::SliderInt("Value Channel Threshold", &ChannelV, 0, 255, "%d", flags);
-        
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY);
+                    float wheelY = ImGui::GetIO().MouseWheel;
+                    if (wheelY != 0) {
+                        int delta = (wheelY > 0) ? step : -step;
+                        ChannelV = IM_CLAMP(ChannelV + delta, 0, 255);
+                    }
+                }
+
                 if (ImGui::Button("Set to Default")){
                     HSVPixelEps[0] = DefaultPixelEps[0];
                     HSVPixelEps[1] = DefaultPixelEps[1];

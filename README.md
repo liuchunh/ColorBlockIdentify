@@ -35,4 +35,7 @@ Moreover, CCL functions are split in this branch with the aim of getting more cl
     - `Theme.h` Created for beautifying panel.
 - 2026.10.23
     - `CCLMainVariableThreshold.cpp` Created, turning HSV Range variables, with the aim of making debug easier.
-    - `CCLMainMultithreading.cpp` Created. It split `Dear ImGui thread` and `OpenCV Video Capture thread` to improve fluency.
+    - `CCLMainMultithreading.cpp` Created. 
+        - It split `Dear ImGui thread` and `OpenCV Video Capture thread` to improve fluency.
+        - Slider mouse scrolling supported.
+        - Created by `GPT 6.1 Sol`.
