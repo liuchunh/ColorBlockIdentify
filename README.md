@@ -32,7 +32,7 @@ Allllllllllllll right i forgot to record it.
 
 maybe Git Commit History gotta help me and rewind time.
 
-<!--> 
+<!--
 Dear Git:
     Fk u for deleting my initial version of README.md
     Jesus would suck my dk.
@@ -43,4 +43,4 @@ Dear Darling Visual Studio Code:
     It is u that save my file and prevent me from rewriting it again.
     Thank you so much one more time.
                                                         Dear. _Oxygen_
-<-->
+-->
