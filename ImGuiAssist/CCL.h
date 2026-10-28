@@ -48,7 +48,7 @@ constexpr int ComponentDisabled = -1;
 // HSV 距离阈值, 用于判断像素是否在指定范围内
 // 这个值必须要比 PixelEps 大, 因为 PixelEps 已知颜色了, 有明确的值范围
 // 而 HSVDistanceThreshold 是未知颜色的, 只能通过三维距离来判断, 所以需要更大的容差
-const unsigned int HSVDistanceThreshold = 300; 
+const unsigned int HSVDistanceThreshold = 68 * 68; 
 
 // 当前设置的 HSV 范围是蓝色范围
 const cv::Vec3b BlueHSVLower = { 100, 43, 46 }; // HSV 范围下限

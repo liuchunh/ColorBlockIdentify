@@ -240,9 +240,6 @@ int main(int, char**)
         ImGui::NewFrame();
 
         // ----------------  CCL Code  ---------------
-        constexpr int TestImgCount = 4;
-        static double SumDuration = 0.0;
-
         //cv::Mat src = cv::imread("C:\\Users\\Lenovo\\Downloads\\output-image.png");
         static std::string message, res, target;
         cv::Mat src, dst;
@@ -253,7 +250,6 @@ int main(int, char**)
         }
 
         LeftTop.x = LeftTop.y = RightBottom.x = RightBottom.y = 0;
-        std::memset(RunsCount, 0, sizeof(RunsCount));
         std::memset(components, 0, sizeof(components));
         LastRowRunCount = 0;
 
